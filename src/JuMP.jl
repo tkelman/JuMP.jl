@@ -82,6 +82,7 @@ type Model
     dictList::Vector
 
     nlpdata#::NLPData
+    sdpdata
 
     # Extension dictionary - e.g. for robust
     # Extensions should define a type to hold information particular to
@@ -97,7 +98,7 @@ function Model(;solver=nothing)
         Model(QuadExpr(),:Min,LinearConstraint[], QuadConstraint[],SOSConstraint[],
               0,String[],Float64[],Float64[],Int[],
               0,Float64[],Float64[],Float64[],nothing,MathProgBase.MissingSolver("",Symbol[]),false,
-              nothing,nothing,nothing,JuMPDict[],nothing,Dict{Symbol,Any}())
+              nothing,nothing,nothing,JuMPDict[],nothing,nothing,Dict{Symbol,Any}())
     else
         if !isa(solver,AbstractMathProgSolver)
             error("solver argument ($solver) must be an AbstractMathProgSolver")
@@ -106,7 +107,7 @@ function Model(;solver=nothing)
         Model(QuadExpr(),:Min,LinearConstraint[], QuadConstraint[],SOSConstraint[],
               0,String[],Float64[],Float64[],Int[],
               0,Float64[],Float64[],Float64[],nothing,solver,false,
-              nothing,nothing,nothing,JuMPDict[],nothing,Dict{Symbol,Any}())
+              nothing,nothing,nothing,JuMPDict[],nothing,nothing,Dict{Symbol,Any}())
     end
 end
 
@@ -533,6 +534,10 @@ include("callbacks.jl")
 include("print.jl")
 # Nonlinear-specific code
 include("nlp.jl")
+# SDP-specific (type) code
+include("sdp.jl")
+# SDP-specific operators
+include("sdp_operators.jl")
 
 ##########################################################################
 end
