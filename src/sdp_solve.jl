@@ -1,5 +1,3 @@
-export solveSDP
-
 function addPrimalConstraint(m::Model,c::PrimalConstraint)
     matvaridx = Int64[]
     matcoefidx = Int64[]

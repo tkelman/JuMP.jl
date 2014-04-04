@@ -1,6 +1,6 @@
 using JuMP
 
-m = SDPModel()
+m = Model()
 @defSDPVar(m, X[3] >= zeros(3,3))
 @defSDPVar(m, Y[2] >= zeros(3,3))
 
@@ -28,7 +28,7 @@ addConstraint(m, trace(B3*Y) <= 0)
 addConstraint(m, trace(A1*X)+trace(B1*Y) >= 1)
 addConstraint(m, Y[2,2] == 1)
 
-solveSDP(m)
+solve(m)
 
 println("objective value = $(getObjectiveValue(m))")
 println("X = $(getValue(X))")

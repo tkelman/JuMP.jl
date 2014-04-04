@@ -24,11 +24,7 @@ end
 
 SDPData() = SDPData(MatrixVar[], {}, {}, String[], MatrixConstraint[],PrimalConstraint[],DualConstraint[],MatrixFuncExpr(),{})
 
-function SDPModel(;solver=MosekSolver())
-    m = Model(solver=solver)
-    m.sdpdata = SDPData()
-    return m
-end
+initSDP(m::Model) = (m.sdpdata == nothing) && (m.sdpdata = SDPData())
 
 # Useful type hierarchy for vcat, hcat, etc.
 abstract SDPMatrix 
@@ -152,6 +148,7 @@ macro defSDPVar(m, x, extra...)
         code = quote
             issym($lb) || error("Lower bound is not symmetric")
             issym($ub) || error("Upper bound is not symmetric")
+            initSDP($m)
             sdp = $(m).sdpdata
             $(varname) = MatrixVar($m, length(sdp.sdpvar)+1, $(var.args[2]))
             push!(sdp.sdpvar, $(varname))
@@ -334,6 +331,7 @@ MatrixFuncExpr() = MatrixFuncExpr({}, Float64[], 0.0)
 convert(::Type{MatrixFuncExpr}, v::MatrixFuncVar) = MatrixFuncExpr([v], [+1.0], 0.)
 
 function setObjective(m::Model, sense::Symbol, c::MatrixFuncExpr)
+    initSDP(m)
     setObjectiveSense(m, sense)
     m.sdpdata.sdpobj = c
 end
@@ -389,6 +387,7 @@ print(io::IO, c::DualExpr) = println(io, "Dual expression in ", join(getnames(c)
 typealias PrimalConstraint JuMP.GenericRangeConstraint{MatrixFuncExpr}
 
 function addConstraint(m::Model, c::PrimalConstraint)
+    initSDP(m)
     push!(m.sdpdata.primalconstr,c)
     return ConstraintRef{PrimalConstraint}(m,length(m.sdpdata.primalconstr))
 end
@@ -415,6 +414,7 @@ type DualConstraint <: JuMPConstraint
 end
 
 function addConstraint(m::Model, c::DualConstraint)
+    initSDP(m)
     push!(m.sdpdata.dualconstr,c)
     return ConstraintRef{DualConstraint}(m,length(m.sdpdata.dualconstr))
 end
@@ -437,6 +437,7 @@ end
 function addConstraint(m::Model, c::MatrixConstraint)
     # test that sizes are compatible
     issym(c.terms) || error("Matrix expression is not symmetric")
+    initSDP(m)
     push!(m.sdpdata.matrixconstr,c)
     return ConstraintRef{MatrixConstraint}(m,length(m.sdpdata.matrixconstr))
 end
