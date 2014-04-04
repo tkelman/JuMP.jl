@@ -538,6 +538,8 @@ include("nlp.jl")
 include("sdp.jl")
 # SDP-specific operators
 include("sdp_operators.jl")
+# SDP-specific solve code
+include("sdp_solve.jl")
 
 ##########################################################################
 end

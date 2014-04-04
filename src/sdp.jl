@@ -1,3 +1,15 @@
+export SDPData, 
+       SDPModel, 
+       MatrixVar, 
+       MatrixExpr, 
+       MatrixFuncVar,
+       MatrixFuncExpr,
+       DualExpr,
+       PrimalConstraint,
+       DualConstraint,
+       MatrixConstraint, 
+       @defSDPVar
+
 type SDPData
     sdpvar
     lb
@@ -53,7 +65,7 @@ function hvcat(dims::(Int64...,), args::Matrices...)
     return MatrixExpr(tmp)
 end
 
-const sensemap = [:(>=) => "≽", :(==) => "=", :(<=) => "≼", :(.>=) => "≥", :(.<=) => "≤"]
+const snsmap = [:(>=) => "≽", :(==) => "=", :(<=) => "≼", :(.>=) => "≥", :(.<=) => "≤"]
 
 if Pkg.installed("Mosek") != nothing
     eval(Expr(:using,:Mosek))
@@ -81,20 +93,76 @@ eye(d::MatrixVar)  = eye(d.dim)
 issym(d::MatrixVar) = true
 isequal(a::MatrixVar, b::MatrixVar) = ( (a.m==b.m) && (a.index==b.index) )
 
-function getValue(d::MatrixVar)
-   sdp = getSDP(d.m)
-   return sdp.sdpval[d.index] 
-end
+getValue(d::MatrixVar) = d.m.sdpdata.sdpval[d.index] 
 
 trace(c::MatrixVar)  = trace(convert(MatrixExpr, c))
+dot(c::MatrixVar,d::AbstractArray) = trace(c*d)
+dot(c::AbstractArray,d::MatrixVar) = trace(c*d)
 norm(c::MatrixVar)   = norm(convert(MatrixExpr, c))
 sum(c::MatrixVar)    = sum(convert(MatrixExpr, c))
 
-show(io::IO,d::MatrixVar)  = print(io, "$(getSDP(d.m).varname[d.index])")
-print(io::IO,d::MatrixVar) = println(io, "$(getSDP(d.m).varname[d.index]) ∈ 𝒮₊($(d.dim))")
+show(io::IO,d::MatrixVar)  = print(io, "$(m.sdpdata.varname[d.index])")
+print(io::IO,d::MatrixVar) = println(io, "$(m.sdpdata.varname[d.index]) ∈ 𝒮₊($(d.dim))")
 
 getindex(d::MatrixVar, x::Int64, y::Int64) = 
     MatrixFuncVar(MatrixExpr({d},{sparse([x,y],[y,x],[0.5,0.5],d.dim,d.dim)},{𝕀},spzeros(d.dim,d.dim)),:ref)
+
+macro defSDPVar(m, x, extra...)
+    m = esc(m)
+    if isexpr(x,:comparison)
+        # we have some bounds
+        if x.args[2] == :>=
+            if length(x.args) == 5
+                error("Use the form lb <= var <= ub instead of ub >= var >= lb")
+            end
+            @assert length(x.args) == 3
+            # lower bounds, no upper
+            lb = esc(x.args[3])
+            ub = Inf
+            var = x.args[1]
+        elseif x.args[2] == :<=
+            if length(x.args) == 5
+                # lb <= x <= u
+                lb = esc(x.args[1])
+                if (x.args[4] != :<=)
+                    error("Expected <= operator")
+                end
+                ub = esc(x.args[5])
+                var = x.args[3]
+            else
+                # x <= u
+                ub = esc(x.args[3])
+                lb = -Inf
+                var = x.args[1]
+            end
+        end
+    else
+        var = x
+        lb = 0.0
+        ub = Inf
+    end
+    if length(extra) > 0
+        # TODO: allow user to specify matrix properties here (diagonal, etc.)
+    end
+
+    if !isexpr(var,:ref) # TODO: infer size via syntax like @defSDPVar(m, X >= ones(3,3))
+        error("Syntax error: Need to specify matrix size (e.g. $var[5])")
+    else
+        varname = esc(var.args[1])
+        code = quote
+            issym($lb) || error("Lower bound is not symmetric")
+            issym($ub) || error("Upper bound is not symmetric")
+            sdp = $(m).sdpdata
+            $(varname) = MatrixVar($m, length(sdp.sdpvar)+1, $(var.args[2]))
+            push!(sdp.sdpvar, $(varname))
+            push!(sdp.lb, $lb)
+            push!(sdp.ub, $ub)
+            push!(sdp.varname, $(string(var.args[1])))
+            nothing
+        end
+        return code
+    end
+end
 
 ###############################################################################
 # Matrix Expression class
@@ -118,7 +186,6 @@ function MatrixExpr(array::Array{Matrices})
         for j in 1:n
             elem = array[i,j]
             if isa(elem, UniformScaling)
-                # sizes[i,j] = 0 # placeholder for square matrix of indeterminant size
                 error("Not yet support for UniformScaling")
             elseif isa(elem, Number)
                 sx[i,j] = 1
@@ -161,14 +228,15 @@ ctranspose(d::MatrixExpr) = MatrixExpr(transpose(d.elem), map(transpose, d.post)
 isequal(a::MatrixExpr, b::MatrixExpr) = ( (a.elem==b.elem) && (a.pre==b.pre) && (a.post==b.post) && (a.constant==b.constant) )
 
 trace(c::MatrixExpr) = MatrixFuncVar(c, :trace)
+dot(c::MatrixExpr,d::AbstractArray) = trace(c*d)
+dot(c::AbstractArray,d::MatrixExpr) = trace(c*d)
 norm(c::MatrixExpr)  = MatrixFuncVar(c, :norm)
 sum(c::MatrixExpr)   = MatrixFuncVar(c, :sum)
 
 function getnames(c::MatrixExpr,d::Dict)
     for el in c.elem
         if isa(el,MatrixVar)
-            sdp = getSDP(el.m)
-            d[sdp.varname[el.index]] = nothing
+            d[el.m.sdpdata.varname[el.index]] = nothing
         elseif isa(el,AbstractArray)
             # do nothing
         elseif isa(el, MatrixExpr)
@@ -240,14 +308,12 @@ end
 
 ###############################################################################
 # (Linear function) of a matrix expression
-# Represents a linear function acting on a matrix expression. Current types 
-# include a trace operator or element reference.
+# Represents a linear function acting on a matrix expression of the form
+# 𝒮₊ⁿ→ℝ. Current types include a trace operator or element reference.
 type MatrixFuncVar
     expr::MatrixExpr
     func::Symbol
 end
-
-convert(::Type{MatrixFuncExpr}, v::MatrixFuncVar) = MatrixFuncExpr([v], [+1.0], 0.)
 
 setObjective(m::Model, sense::Symbol, c::MatrixFuncVar) = setObjective(m, sense, convert(MatrixFuncExpr,c))
 
@@ -265,10 +331,11 @@ typealias MatrixFuncExpr JuMP.GenericAffExpr{Float64,Union(MatrixFuncVar,Variabl
 
 MatrixFuncExpr() = MatrixFuncExpr({}, Float64[], 0.0)
 
+convert(::Type{MatrixFuncExpr}, v::MatrixFuncVar) = MatrixFuncExpr([v], [+1.0], 0.)
+
 function setObjective(m::Model, sense::Symbol, c::MatrixFuncExpr)
     setObjectiveSense(m, sense)
-    sdp = getSDP(m)
-    sdp.sdpobj = c
+    m.sdpdata.sdpobj = c
 end
 
 getnames(c::MatrixFuncVar,d::Dict)  = getnames(c.expr,d)
@@ -322,9 +389,8 @@ print(io::IO, c::DualExpr) = println(io, "Dual expression in ", join(getnames(c)
 typealias PrimalConstraint JuMP.GenericRangeConstraint{MatrixFuncExpr}
 
 function addConstraint(m::Model, c::PrimalConstraint)
-    sdp = getSDP(m)
-    push!(sdp.primalconstr,c)
-    return ConstraintRef{PrimalConstraint}(m,length(sdp.primalconstr))
+    push!(m.sdpdata.primalconstr,c)
+    return ConstraintRef{PrimalConstraint}(m,length(m.sdpdata.primalconstr))
 end
 
 function conToStr(c::PrimalConstraint)
@@ -336,8 +402,8 @@ function conToStr(c::PrimalConstraint)
     return string("Primal constraint in ", str) 
 end
 
-show(io::IO, c::ConstraintRef{PrimalConstraint})  = print(io, conToStr(getSDP(c.m).primalconstr[c.idx]))
-print(io::IO, c::ConstraintRef{PrimalConstraint}) = print(io, conToStr(getSDP(c.m).primalconstr[c.idx]))
+show(io::IO, c::ConstraintRef{PrimalConstraint})  = print(io, conToStr(c.m.sdpdata.primalconstr[c.idx]))
+print(io::IO, c::ConstraintRef{PrimalConstraint}) = print(io, conToStr(c.m.sdpdata.primalconstr[c.idx]))
 
 ###############################################################################
 # Dual Constraint class
@@ -349,15 +415,14 @@ type DualConstraint <: JuMPConstraint
 end
 
 function addConstraint(m::Model, c::DualConstraint)
-    sdp = getSDP(m)
-    push!(sdp.dualconstr,c)
-    return ConstraintRef{DualConstraint}(m,length(sdp.dualconstr))
+    push!(m.sdpdata.dualconstr,c)
+    return ConstraintRef{DualConstraint}(m,length(m.sdpdata.dualconstr))
 end
 
 conToStr(c::DualConstraint) = string("Dual constraint in ", join(getnames(c.terms),", ")) 
 
-show(io::IO, c::ConstraintRef{DualConstraint})  = print(io, conToStr(getSDP(c.m).dualconstr[c.idx]))
-print(io::IO, c::ConstraintRef{DualConstraint}) = print(io, conToStr(getSDP(c.m).dualconstr[c.idx]))
+show(io::IO, c::ConstraintRef{DualConstraint})  = print(io, conToStr(c.m.sdpdata.dualconstr[c.idx]))
+print(io::IO, c::ConstraintRef{DualConstraint}) = print(io, conToStr(c.m.sdpdata.dualconstr[c.idx]))
 
 ###############################################################################
 # Matrix Constraint class
@@ -370,11 +435,10 @@ type MatrixConstraint <: JuMPConstraint
 end
 
 function addConstraint(m::Model, c::MatrixConstraint)
-    sdp = getSDP(m)
     # test that sizes are compatible
     issym(c.terms) || error("Matrix expression is not symmetric")
-    push!(sdp.matrixconstr,c)
-    return ConstraintRef{MatrixConstraint}(m,length(sdp.matrixconstr))
+    push!(m.sdpdata.matrixconstr,c)
+    return ConstraintRef{MatrixConstraint}(m,length(m.sdpdata.matrixconstr))
 end
 
 function conToStr(c::MatrixConstraint)
@@ -384,5 +448,5 @@ function conToStr(c::MatrixConstraint)
     return string("SDP matrix constraint in ", str) 
 end
 
-show(io::IO, c::ConstraintRef{MatrixConstraint})  = print(io, conToStr(getSDP(c.m).matrixconstr[c.idx]))
-print(io::IO, c::ConstraintRef{MatrixConstraint}) = print(io, conToStr(getSDP(c.m).matrixconstr[c.idx]))
+show(io::IO, c::ConstraintRef{MatrixConstraint})  = print(io, conToStr(c.m.sdpdata.matrixconstr[c.idx]))
+print(io::IO, c::ConstraintRef{MatrixConstraint}) = print(io, conToStr(c.m.sdpdata.matrixconstr[c.idx]))

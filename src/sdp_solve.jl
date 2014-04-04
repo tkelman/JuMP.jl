@@ -1,3 +1,5 @@
+export solveSDP
+
 function addPrimalConstraint(m::Model,c::PrimalConstraint)
     matvaridx = Int64[]
     matcoefidx = Int64[]
@@ -144,7 +146,7 @@ end
 # end
 
 function addSDPVarBounds(m::Model)
-    sdp = getSDP(m)
+    sdp = m.sdpdata
     for it in 1:length(sdp.sdpvar)
         lb = sdp.lb[it]
         ub = sdp.ub[it]
@@ -175,7 +177,7 @@ function addSDPVarBounds(m::Model)
 end
 
 function solveSDP(m::Model)
-    sdp = getSDP(m)
+    sdp = m.sdpdata
     # make this solver-independent when CSDP is working
     m.solver = Mosek.MosekSolver()
     m.internalModel = model(m.solver)
@@ -230,8 +232,6 @@ function solveSDP(m::Model)
     for d in sdp.dualconstr
         addDualConstraint(m,d)
     end
-
-    Mosek.putdouparam(m.internalModel.task, MSK_DPAR_OPTIMIZER_MAX_TIME, 100.0)
 
     optimize!(m.internalModel)
     stat = status(m.internalModel)
