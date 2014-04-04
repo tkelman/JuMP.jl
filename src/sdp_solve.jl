@@ -179,7 +179,11 @@ function solveSDP(m::Model)
     # make this solver-independent when CSDP is working
     m.solver = Mosek.MosekSolver()
     m.internalModel = model(m.solver)
-    task = m.internalModel.task
+
+    # add linear (scalar) constraints
+    f, rowlb, rowub = prepProblemBounds(m)  
+    A = prepConstrMatrix(m)
+    loadproblem!(m.internalModel, A, m.colLower, m.colUpper, f, rowlb, rowub, m.objSense)
 
     for var in sdp.sdpvar
         addsdpvar!(m.internalModel, var.dim)
@@ -194,7 +198,6 @@ function solveSDP(m::Model)
             scalcost[var.col] = sdp.sdpobj.coeffs[it]
         elseif isa(var, MatrixFuncVar)
             @assert length(var.expr.elem) == 1 # TODO: deal with nested structure
-            # @assert var.terms.constant # TODO: add constant term to objective!
             idx = addsdpmatrix!(m.internalModel, var.expr.pre[1]) # TODO: deal with post case as well
             push!(matcoefidx, idx)
             push!(matvaridx, var.expr.elem[1].index)
@@ -203,15 +206,8 @@ function solveSDP(m::Model)
     setsdpobj!(m.internalModel, matvaridx, matcoefidx)
     setsense!(m.internalModel,m.objSense)
 
-    objaff::AffExpr = m.obj.aff
-    f = zeros(m.numCols)
-    for ind in 1:length(objaff.vars)
-        f[objaff.vars[ind].col] += objaff.coeffs[ind]
-    end
-
-    for i in 1:m.numCols
-        addvar!(m.internalModel, m.colLower[i], m.colUpper[i], scalcost[i]+f[i])
-    end
+    # set scalar objective, overriding before
+    setobj!(m.internalModel, scalcost+f)
 
     # add bounds on SDP variables
     addSDPVarBounds(m)
