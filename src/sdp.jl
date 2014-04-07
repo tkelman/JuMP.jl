@@ -11,13 +11,13 @@ export SDPData,
        @defSDPVar
 
 type SDPData
-    sdpvar
+    sdpvar#::Vector{MatrixVar}
     lb
     ub
-    varname
-    matrixconstr
-    primalconstr
-    dualconstr
+    varname::Vector{String}
+    matrixconstr#::Vector{MatrixConstraint}
+    primalconstr#::Vector{PrimalConstraint}
+    dualconstr#::Vector{DualConstraint}
     sdpobj
     sdpval
 end
