@@ -2,7 +2,7 @@ using JuMP
 
 m = Model()
 @defSDPVar(m, X[3] >= zeros(3,3))
-@defSDPVar(m, Y[2] >= zeros(3,3))
+@defSDPVar(m, Y[2] >= zeros(2,2))
 
 C = eye(3,3)
 A1 = zeros(3,3)

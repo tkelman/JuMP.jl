@@ -162,7 +162,7 @@ macro defSDPVar(m, x, extra...)
             $ub == 0.0 || $ub ==  Inf || $sz == size($ub,1) || error("Bounds must be of same size as variable")
             initSDP($m)
             sdp = $(m).sdpdata
-            $(varname) = MatrixVar($m, length(sdp.sdpvar)+1, $sz)
+            $(varname) = MatrixVar($m, length(sdp.sdpvar)+1, $(esc(var.args[2])))
             push!(sdp.sdpvar, $(varname))
             push!(sdp.lb, $lb)
             push!(sdp.ub, $ub)

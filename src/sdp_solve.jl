@@ -11,20 +11,22 @@ function addPrimalConstraint(m::Model,c::PrimalConstraint)
             push!(scalcoefidx, coeff)
         elseif isa(el, MatrixFuncVar) #TODO: deal with things like trace(A*X-B*Y)
             expr = el.expr
+            sinfo = m.sdpdata.solverinfo[expr.elem[1].index]
+            sgn = (sinfo.psd ? +1.0 : -1.0)
             if el.func == :trace
-                bnd_offset += trace(el.expr.constant)
                 mapreduce(x->isa(x,MatrixVar),&,expr.elem) || error("Cannot have nested structure inside trace operator")
                 mat = expr.post[1] * expr.pre[1] # exploit cyclic property of trace
-                idx = addsdpmatrix!(m.internalModel,coeff*mat)
+                idx = addsdpmatrix!(m.internalModel,sgn*coeff*mat)
+                bnd_offset += trace(coeff*mat*sinfo.offset) + trace(el.expr.constant)
             elseif el.func == :ref # post matrix and constant will be empty
-                idx = addsdpmatrix!(m.internalModel,coeff*expr.pre[1])
+                idx = addsdpmatrix!(m.internalModel,sgn*coeff*expr.pre[1])
             elseif el.func == :sum
-                idx = addsdpmatrix!(m.internalModel,coeff*ones(expr.pre[1])*expr.pre[1])
+                idx = addsdpmatrix!(m.internalModel,sgn*coeff*ones(expr.pre[1])*expr.pre[1])
             else
                 error("Only trace operator or reference is currently supported")
             end
             push!(matcoefidx, idx)
-            push!(matvaridx, expr.elem[1].index)
+            push!(matvaridx, sinfo.id)
         end
     end
     addsdpconstr!(m.internalModel,
@@ -34,6 +36,17 @@ function addPrimalConstraint(m::Model,c::PrimalConstraint)
                  scalcoefidx,
                  c.lb-bnd_offset,
                  c.ub-bnd_offset)
+end
+
+function addInternalVar(m::Model, dim::Int64)
+    idx = addsdpvar!(m.internalModel, dim)
+    var = MatrixVar(m,length(m.sdpdata.sdpvar)+1,dim)
+    push!(m.sdpdata.sdpvar, var)
+    push!(m.sdpdata.lb, 0.0)
+    push!(m.sdpdata.ub, Inf)
+    push!(m.sdpdata.varname, "")
+    push!(m.sdpdata.solverinfo, SolverInfo(idx,true,spzeros(dim,dim)))
+    return var
 end
 
 function addMatrixConstraint(m::Model,d::MatrixConstraint)
@@ -46,16 +59,14 @@ function addMatrixConstraint(m::Model,d::MatrixConstraint)
             end
         end
     elseif d.sense == :(>=)
-        idx = addsdpvar!(m.internalModel, n)
-        _internalvar = MatrixVar(m, idx, n)
+        _internalvar = addInternalVar(m,n)
         for i in 1:n
             for j in i:n
                 addPrimalConstraint(m, d.terms[i,j] == _internalvar[i,j])
             end
         end
     elseif d.sense == :(<=)
-        idx = addsdpvar!(m.internalModel, n)
-        _internalvar = MatrixVar(m, idx, n)
+        _internalvar = addInternalVar(m,n)
         for i in 1:n
             for j in i:n
                 addPrimalConstraint(m, -d.terms[i,j] == _internalvar[i,j])
@@ -92,24 +103,21 @@ function addDualConstraint(m::Model, d::DualConstraint)
             end
         end
     elseif d.sense == :(>=)
-        idx = addsdpvar!(m.internalModel, n)
-        _internalvar = MatrixVar(m, idx, n)    
+        _internalvar = addInternalVar(m,n)
         for i in 1:n
             for j in i:n
                 addPrimalConstraint(m, mapreduce(x->x[1]*x[2][i,j], +, zip(d.terms.vars,d.terms.coeffs)) + d.terms.constant[i,j] ==   _internalvar[i,j] )
             end
         end
     elseif d.sense == :(<=)
-        idx = addsdpvar!(m.internalModel, n)
-        _internalvar = MatrixVar(m, idx, n)    
+        _internalvar = addInternalVar(m,n)
         for i in 1:n
             for j in i:n
                 addPrimalConstraint(m, mapreduce(x->x[1]*x[2][i,j], +, zip(d.terms.vars,d.terms.coeffs)) + d.terms.constant[i,j] == -(_internalvar[i,j]))
             end
         end
     elseif d.sense == :(.>=)
-        idx = addsdpvar!(m.internalModel, n)
-        _internalvar = MatrixVar(m, idx, n)    
+        _internalvar = addInternalVar(m,n)  
         for i in 1:n
             for j in i:n
                 con = d.terms.constant[i,j]
@@ -118,8 +126,7 @@ function addDualConstraint(m::Model, d::DualConstraint)
             end
         end
     elseif d.sense == :(.<=)
-        idx = addsdpvar!(m.internalModel, n)
-        _internalvar = MatrixVar(m, idx, n)    
+        _internalvar = addInternalVar(m,n)  
         for i in 1:n
             for j in i:n
                 con = d.terms.constant[i,j]
@@ -135,7 +142,7 @@ function setupSDPVar(m::Model, it::Int64)
     ub    = m.sdpdata.ub[it]
     var   = m.sdpdata.sdpvar[it]
     sinfo = m.sdpdata.solverinfo[it]
-    sinfo.id = addsdpvar!(m.internalModel, dim)
+    sinfo.id = addsdpvar!(m.internalModel, var.dim)
     if lb == 0.0 || mapreduce(x->(x==0),&,lb)
         if ub == Inf || mapreduce(x->(x==Inf),&,ub) # X >= 0
             # do nothing
@@ -156,10 +163,18 @@ function setupSDPVar(m::Model, it::Int64)
         else # C <= X <= 0
             addMatrixConstraint(m, var >= lb)
         end
-    else # C <= X <= D
-        sinfo.psd    = true
-        sinfo.offset = lb
-        addMatrixConstraint(m, var <= ub)
+    else
+        if lb == -Inf || mapreduce(x->(x==-Inf),&,lb) # X <= D
+            sinfo.psd    = false
+            sinfo.offset = -ub
+        elseif ub == Inf || mapreduce(x->(x==Inf),&,ub) # X >= C
+            sinfo.psd    = true
+            sinfo.offset = -lb
+        else # C <= X <= D
+            sinfo.psd    = true
+            sinfo.offset = -lb
+            addMatrixConstraint(m, var <= ub)
+        end
     end
 end
 
@@ -181,7 +196,7 @@ function solveSDP(m::Model)
     loadproblem!(m.internalModel, A, m.colLower, m.colUpper, f, rowlb, rowub, m.objSense)
 
     for it in 1:length(sdp.sdpvar)
-        setupSDPVar!(m, it)
+        setupSDPVar(m, it)
     end
 
     # TODO: make this work for nested structure
