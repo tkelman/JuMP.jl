@@ -16,6 +16,7 @@ function addPrimalConstraint(m::Model,c::PrimalConstraint)
             if el.func == :trace
                 mapreduce(x->isa(x,MatrixVar),&,expr.elem) || error("Cannot have nested structure inside trace operator")
                 mat = expr.post[1] * expr.pre[1] # exploit cyclic property of trace
+                isa(mat,UniformScaling) && (mat *= speye(size(el.expr)...))
                 idx = addsdpmatrix!(m.internalModel,sgn*coeff*mat)
                 bnd_offset += trace(coeff*mat*sinfo.offset) + trace(el.expr.constant)
             elseif el.func == :ref # post matrix and constant will be empty
@@ -200,6 +201,7 @@ function solveSDP(m::Model)
     end
 
     # TODO: make this work for nested structure
+    # TODO: deal with bounds changing in objective
     scalcost = zeros(Float64, m.numCols)
     matvaridx = Int64[]
     matcoefidx = Int64[]
@@ -210,14 +212,14 @@ function solveSDP(m::Model)
             @assert length(var.expr.elem) == 1 # TODO: deal with nested structure
             idx = addsdpmatrix!(m.internalModel, var.expr.pre[1]) # TODO: deal with post case as well
             push!(matcoefidx, idx)
-            push!(matvaridx, var.expr.elem[1].index)
+            push!(matvaridx, sdp.solverinfo[it].id)
         end
     end
     setsdpobj!(m.internalModel, matvaridx, matcoefidx)
-    setsense!(m.internalModel,m.objSense)
 
     # set scalar objective, overriding before
     setobj!(m.internalModel, scalcost+f)
+    setsense!(m.internalModel,m.objSense)
 
     # add primal constraints
     for c in sdp.primalconstr
@@ -246,9 +248,7 @@ function solveSDP(m::Model)
         m.objVal = getobjval(m.internalModel)
         m.objVal += sdp.sdpobj.constant 
         m.colVal = MathProgBase.getsolution(m.internalModel)
-        for it in 1:length(sdp.sdpvar)
-            push!(sdp.sdpval, MathProgBase.getsdpsolution(m.internalModel, it))
-        end
+        sdp.sdpval = {MathProgBase.getsdpsolution(m.internalModel, it) for it in 1:length(sdp.sdpvar)}
     end
     return stat
 end
