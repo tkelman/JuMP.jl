@@ -10,10 +10,19 @@ export SDPData,
        MatrixConstraint, 
        @defSDPVar
 
+type SolverInfo
+    id::Int64 # internal solver IDs for PSD variable
+    psd::Bool # psd==true, nsd==false
+    offset # constant C in X≽C
+end
+
+SolverInfo() = SolverInfo(0,true,nothing)
+
 type SDPData
     sdpvar#::Vector{MatrixVar}
     lb
     ub
+    solverinfo::Vector{SolverInfo}
     varname::Vector{String}
     matrixconstr#::Vector{MatrixConstraint}
     primalconstr#::Vector{PrimalConstraint}
@@ -22,7 +31,7 @@ type SDPData
     sdpval
 end
 
-SDPData() = SDPData(MatrixVar[], {}, {}, String[], MatrixConstraint[],PrimalConstraint[],DualConstraint[],MatrixFuncExpr(),{})
+SDPData() = SDPData(MatrixVar[], {}, {}, SolverInfo[], String[], MatrixConstraint[],PrimalConstraint[],DualConstraint[],MatrixFuncExpr(),{})
 
 initSDP(m::Model) = (m.sdpdata == nothing) && (m.sdpdata = SDPData())
 
@@ -145,16 +154,20 @@ macro defSDPVar(m, x, extra...)
         error("Syntax error: Need to specify matrix size (e.g. $var[5])")
     else
         varname = esc(var.args[1])
+        sz = var.args[2]
         code = quote
             issym($lb) || error("Lower bound is not symmetric")
             issym($ub) || error("Upper bound is not symmetric")
+            $lb == 0.0 || $lb == -Inf || $sz == size($lb,1) || error("Bounds must be of same size as variable")
+            $ub == 0.0 || $ub ==  Inf || $sz == size($ub,1) || error("Bounds must be of same size as variable")
             initSDP($m)
             sdp = $(m).sdpdata
-            $(varname) = MatrixVar($m, length(sdp.sdpvar)+1, $(var.args[2]))
+            $(varname) = MatrixVar($m, length(sdp.sdpvar)+1, $sz)
             push!(sdp.sdpvar, $(varname))
             push!(sdp.lb, $lb)
             push!(sdp.ub, $ub)
             push!(sdp.varname, $(string(var.args[1])))
+            push!(sdp.solverinfo, SolverInfo())
             nothing
         end
         return code

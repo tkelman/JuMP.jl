@@ -130,51 +130,46 @@ function addDualConstraint(m::Model, d::DualConstraint)
     end
 end
 
-# function flipcoeffs(m::Model, x::MatrixVar)
-#     sdp = getSDP(m)
-#     for c in sdp.primalconstr
-
-#     end
-#     for d in sdp.dualconstr
-
-#     end
-#     for f in sdp.matrixconstr
-
-#     end
-# end
-
-function addSDPVarBounds(m::Model)
-    sdp = m.sdpdata
-    for it in 1:length(sdp.sdpvar)
-        lb = sdp.lb[it]
-        ub = sdp.ub[it]
-        if lb == 0.0 || lb == zero(lb)
-            if ub == Inf || ub == infs(ub) # X >= 0
-                # do nothing
+function setupSDPVar(m::Model, it::Int64)
+    lb    = m.sdpdata.lb[it]
+    ub    = m.sdpdata.ub[it]
+    var   = m.sdpdata.sdpvar[it]
+    sinfo = m.sdpdata.solverinfo[it]
+    sinfo.id = addsdpvar!(m.internalModel, dim)
+    if lb == 0.0 || mapreduce(x->(x==0),&,lb)
+        if ub == Inf || mapreduce(x->(x==Inf),&,ub) # X >= 0
+            # do nothing
+        else
+            if ub == 0.0 || mapreduce(x->(x==0),&,ub) # X == 0
+                addMatrixConstraint(m, var <= zeros(var))
             else # 0 <= X <= C
-                if ub == 0.0 || ub == zero(ub)
-                    # what to do? have X == 0
-                else
-                    addMatrixConstraint(m, sdp.sdpvar[it] <= ub)
-                end
+                addMatrixConstraint(m, var <= ub)
             end
-        elseif ub == 0.0 || ub == zero(lb)
-            # TODO: flip all coefficients in constraints? Then flip signs below as well
-            # flipcoeffs(m, sdp.sdpvar)
-            if lb == -Inf || lb == -infs # X <= 0
-                # do nothing
-            else # C <= X <= 0
-                addMatrixConstraint(m, sdp.sdpvar[it]  >= lb)
-                addMatrixConstraint(m, sdp.sdpvar[it]  <= ub)
-            end
-        else # C <= X <= D
-            addMatrixConstraint(m, sdp.sdpvar[it] >= lb)
-            addMatrixConstraint(m, sdp.sdpvar[it] <= ub)
         end
+        sinfo.psd = true
+        sinfo.offset = spzeros(size(var)...)
+    elseif ub == 0.0 || mapreduce(x->(x==0),&,ub)
+        sinfo.psd = false
+        sinfo.offset = spzeros(size(var)...)
+        if lb == -Inf || mapreduce(x->(x==-Inf),&,lb) # X <= 0
+            # do nothing (here, at least)
+        else # C <= X <= 0
+            addMatrixConstraint(m, var >= lb)
+        end
+    else # C <= X <= D
+        sinfo.psd    = true
+        sinfo.offset = lb
+        addMatrixConstraint(m, var <= ub)
     end
 end
 
 function solveSDP(m::Model)
+    for j = 1:m.numCols
+        if m.colCat[j] == INTEGER
+            error("Integer variables present in SDP problem")
+        end
+    end
+
     sdp = m.sdpdata
     # make this solver-independent when CSDP is working
     m.solver = Mosek.MosekSolver()
@@ -185,8 +180,8 @@ function solveSDP(m::Model)
     A = prepConstrMatrix(m)
     loadproblem!(m.internalModel, A, m.colLower, m.colUpper, f, rowlb, rowub, m.objSense)
 
-    for var in sdp.sdpvar
-        addsdpvar!(m.internalModel, var.dim)
+    for it in 1:length(sdp.sdpvar)
+        setupSDPVar!(m, it)
     end
 
     # TODO: make this work for nested structure
@@ -208,9 +203,6 @@ function solveSDP(m::Model)
 
     # set scalar objective, overriding before
     setobj!(m.internalModel, scalcost+f)
-
-    # add bounds on SDP variables
-    addSDPVarBounds(m)
 
     # add primal constraints
     for c in sdp.primalconstr
