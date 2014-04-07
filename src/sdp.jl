@@ -106,8 +106,8 @@ dot(c::AbstractArray,d::MatrixVar) = trace(c*d)
 norm(c::MatrixVar)   = norm(convert(MatrixExpr, c))
 sum(c::MatrixVar)    = sum(convert(MatrixExpr, c))
 
-show(io::IO,d::MatrixVar)  = print(io, "$(m.sdpdata.varname[d.index])")
-print(io::IO,d::MatrixVar) = println(io, "$(m.sdpdata.varname[d.index]) ∈ 𝒮₊($(d.dim))")
+show(io::IO,d::MatrixVar)  = print(io, "$(d.m.sdpdata.varname[d.index])")
+print(io::IO,d::MatrixVar) = println(io, "$(d.m.sdpdata.varname[d.index]) ∈ 𝒮₊($(d.dim))")
 
 getindex(d::MatrixVar, x::Int64, y::Int64) = 
     MatrixFuncVar(MatrixExpr({d},{sparse([x,y],[y,x],[0.5,0.5],d.dim,d.dim)},{𝕀},spzeros(d.dim,d.dim)),:ref)
