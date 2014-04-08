@@ -178,7 +178,10 @@ end
 # Matrix Expression class
 # Expressions of the form A*X*B+C for matrices A, B, C, and where
 # X may be a matrix expression or a matrix variable. Assumed that the 
-# expression is symmetric.
+# expression is symmetric. When elem is a 2D array (constructed via 
+# concatenation), pre and post be a single matrix each (i.e. the form is 
+# AXB+C). When elem is a vector, this corresponds to an affine expression of 
+# the form ΣAᵢXᵢBᵢ + C.
 type MatrixExpr{T<:Number} <: SDPMatrix
     elem::Array
     pre::Array
@@ -242,6 +245,17 @@ dot(c::MatrixExpr,d::AbstractArray) = trace(c*d)
 dot(c::AbstractArray,d::MatrixExpr) = trace(c*d)
 norm(c::MatrixExpr)  = MatrixFuncVar(c, :norm)
 sum(c::MatrixExpr)   = MatrixFuncVar(c, :sum)
+
+# helper for getValue(c::MatrixExpr)
+getValue{T<:Number}(c::AbstractArray{T,2}) = c
+
+function getValue(c::MatrixExpr)
+    if isa(c.elem, Vector)
+        return mapreduce(it->c.pre[it]*getValue(c.elem[it])*c.post[it], +, 1:length(c.elem)) + c.constant
+    else # isa(c.elem, Matrix)
+        return c.pre[1] * hvcat(size(c.elem), map(getValue, c.elem)'...) * c.post[1] + c.constant
+    end
+end
 
 function getnames(c::MatrixExpr,d::Dict)
     for el in c.elem
@@ -325,6 +339,14 @@ type MatrixFuncVar
     func::Symbol
 end
 
+function getValue(v::MatrixFuncVar)
+    if v.func == :trace
+        return trace(getValue(v.expr))
+    elseif v.func == :ref
+        return getValue(MatrixExpr(v.expr.elem,{𝕀},{𝕀},spzeros(size(v.expr)...)))[findn(v.expr.pre[1])...][1] # this is real hacky and ugly
+    end
+end
+
 setObjective(m::Model, sense::Symbol, c::MatrixFuncVar) = setObjective(m, sense, convert(MatrixFuncExpr,c))
 
 ###############################################################################
@@ -342,6 +364,8 @@ typealias MatrixFuncExpr JuMP.GenericAffExpr{Float64,Union(MatrixFuncVar,Variabl
 MatrixFuncExpr() = MatrixFuncExpr({}, Float64[], 0.0)
 
 convert(::Type{MatrixFuncExpr}, v::MatrixFuncVar) = MatrixFuncExpr([v], [+1.0], 0.)
+
+getValue(v::MatrixFuncExpr) = mapreduce(it->v.coeffs[it]*getValue(v.vars[it]), +, 1:length(v.vars)) + v.constant
 
 function setObjective(m::Model, sense::Symbol, c::MatrixFuncExpr)
     initSDP(m)
@@ -386,6 +410,8 @@ DualExpr(n::Integer) = DualExpr(Variable[],AbstractArray[],spzeros(n,n))
 
 size(d::DualExpr) = size(d.constant)
 size(d::DualExpr, slice::Int64) = (0 <= slice <= 2) ? d.dim : 1
+
+getValue(d::DualExpr) = mapreduce(it->d.coeffs[it]*getValue(d.vars[it]), +, 1:length(d.vars)) + d.constant
 
 getnames(c::DualExpr) = [v.m.colNames[v.col] for v in c.vars]
 
