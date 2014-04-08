@@ -45,7 +45,7 @@ function addInternalVar(m::Model, dim::Int64)
     push!(m.sdpdata.sdpvar, var)
     push!(m.sdpdata.lb, 0.0)
     push!(m.sdpdata.ub, Inf)
-    push!(m.sdpdata.varname, "")
+    push!(m.sdpdata.varname, "_internalvar")
     push!(m.sdpdata.solverinfo, SolverInfo(idx,true,spzeros(dim,dim)))
     return var
 end
@@ -167,13 +167,13 @@ function setupSDPVar(m::Model, it::Int64)
     else
         if lb == -Inf || mapreduce(x->(x==-Inf),&,lb) # X <= D
             sinfo.psd    = false
-            sinfo.offset = -ub
+            sinfo.offset = ub
         elseif ub == Inf || mapreduce(x->(x==Inf),&,ub) # X >= C
             sinfo.psd    = true
-            sinfo.offset = -lb
+            sinfo.offset = lb
         else # C <= X <= D
             sinfo.psd    = true
-            sinfo.offset = -lb
+            sinfo.offset = lb
             addMatrixConstraint(m, var <= ub)
         end
     end
@@ -210,7 +210,8 @@ function solveSDP(m::Model)
             scalcost[var.col] = sdp.sdpobj.coeffs[it]
         elseif isa(var, MatrixFuncVar)
             @assert length(var.expr.elem) == 1 # TODO: deal with nested structure
-            idx = addsdpmatrix!(m.internalModel, var.expr.pre[1]) # TODO: deal with post case as well
+            sgn = sdp.solverinfo[it].psd ? +1.0 : -1.0
+            idx = addsdpmatrix!(m.internalModel, sgn*var.expr.pre[1]) # TODO: deal with post case as well
             push!(matcoefidx, idx)
             push!(matvaridx, sdp.solverinfo[it].id)
         end
@@ -245,10 +246,19 @@ function solveSDP(m::Model)
         warn("SDP not solved to optimality, status: $stat")
     else
         # store solution values in model
-        m.objVal = getobjval(m.internalModel)
-        m.objVal += sdp.sdpobj.constant 
+        # m.objVal = getValue(sdp.sdpobj)
+        # m.objVal = getobjval(m.internalModel)
+        # m.objVal += sdp.sdpobj.constant 
         m.colVal = MathProgBase.getsolution(m.internalModel)
-        sdp.sdpval = {MathProgBase.getsdpsolution(m.internalModel, it) for it in 1:length(sdp.sdpvar)}
+        sdp.sdpval = Array(AbstractArray, length(sdp.sdpvar))
+        for it in 1:length(sdp.sdpvar)
+            idx    = sdp.solverinfo[it].id
+            sgn    = sdp.solverinfo[it].psd ? +1.0 : -1.0
+            offset = sdp.solverinfo[it].offset
+            sdp.sdpval[it] = sgn*MathProgBase.getsdpsolution(m.internalModel, idx) + offset
+            # m.objVal += sgn*trace(offset)
+        end
+        m.objVal = getValue(sdp.sdpobj)
     end
     return stat
 end
