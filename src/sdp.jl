@@ -100,6 +100,30 @@ isequal(a::MatrixVar, b::MatrixVar) = ( (a.m==b.m) && (a.index==b.index) )
 
 getValue(d::MatrixVar) = d.m.sdpdata.sdpval[d.index] 
 
+getLower(d::MatrixVar) = d.m.sdpdata.lb[d.index]
+getUpper(d::MatrixVar) = d.m.sdpdata.ub[d.index]
+function setLower(d::MatrixVar,lb::Real)
+    (lb == 0.0 || isinf(lb)) && error("Only zero or infinite scalar bound is allowed")
+    d.m.sdpdata.lb[d.index] = lb
+end
+function setLower{T<:Number}(d::MatrixVar,lb::AbstractArray{T,2})
+    size(d) == size(lb) || error("Bound must be same size as matrix variable")
+    issym(lb) || error("Bound must be symmetric")
+    d.m.sdpdata.lb[d.index] = lb
+end
+function setUpper(d::MatrixVar,ub::Real)
+    (ub == 0.0 || isinf(ub)) && error("Only zero or infinite scalar bound is allowed")
+    d.m.sdpdata.ub[d.index] = ub
+end
+function setUpper{T<:Number}(d::MatrixVar,ub::AbstractArray{T,2})
+    size(d) == size(ub) || error("Bound must be same size as matrix variable")
+    issym(ub) || error("Bound must be symmetric")
+    d.m.sdpdata.ub[d.index] = ub
+end
+
+getName(d::MatrixVar) = d.m.sdpdata.varname[d.index]
+setName(d::MatrixVar, name::String) = (d.m.sdpdata.varname[d.index] = name)
+
 trace(c::MatrixVar)  = trace(convert(MatrixExpr, c))
 dot(c::MatrixVar,d::AbstractArray) = trace(c*d)
 dot(c::AbstractArray,d::MatrixVar) = trace(c*d)
@@ -158,8 +182,12 @@ macro defSDPVar(m, x, extra...)
         code = quote
             issym($lb) || error("Lower bound is not symmetric")
             issym($ub) || error("Upper bound is not symmetric")
-            $lb == 0.0 || $lb == -Inf || $sz == size($lb,1) || error("Bounds must be of same size as variable")
-            $ub == 0.0 || $ub ==  Inf || $sz == size($ub,1) || error("Bounds must be of same size as variable")
+            $sz == size($lb,1) || error("Lower bound is not of same size as variable")
+            $sz == size($ub,1) || error("Upper bound is not of same size as variable")
+            isa($lb,Number) && !($lb == 0.0 || $lb == -Inf) &&  error("Bounds must be of same size as variable")
+            isa($ub,Number) && !($ub == 0.0 || $ub ==  Inf) &&  error("Bounds must be of same size as variable")
+            $lb == -Inf && $ub == Inf && error("Replace unrestricted SDP variable with regular, scalar variables")
+            $lb == $ub && error("Replace with constant matrix")
             initSDP($m)
             sdp = $(m).sdpdata
             $(varname) = MatrixVar($m, length(sdp.sdpvar)+1, $(esc(var.args[2])))
