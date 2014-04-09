@@ -1,17 +1,3 @@
-.*(x::Number,J::UniformScaling) = UniformScaling(x*J.λ)
-.*(J::UniformScaling,x::Number) = UniformScaling(J.λ*x)
-
-./(J::UniformScaling,x::Number) = UniformScaling(J.λ/x)
-
--(J::UniformScaling) = UniformScaling(-J.λ)
-
- ==(J1::UniformScaling,J2::UniformScaling) = (J1.λ == J2.λ)
- .>(J1::UniformScaling,J2::UniformScaling) = false
-.>=(J1::UniformScaling,J2::UniformScaling) = (J1.λ >= J2.λ)
- .<(J1::UniformScaling,J2::UniformScaling) = false
-.<=(J1::UniformScaling,J2::UniformScaling) = (J1.λ <= J2.λ)
-.==(J1::UniformScaling,J2::UniformScaling) = (J1.λ == J2.λ)
-
 # Number--DualExpr
 (*)(lhs::Number, rhs::DualExpr) = DualExpr(copy(rhs.vars), lhs*rhs.coeffs, copy(rhs.constant))
 # Number--SDPVar

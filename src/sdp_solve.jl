@@ -245,18 +245,17 @@ function solveSDP(m::Model)
     elseif stat != :Optimal
         warn("SDP not solved to optimality, status: $stat")
     else
-        # store solution values in model
-        # m.objVal = getValue(sdp.sdpobj)
-        # m.objVal = getobjval(m.internalModel)
-        # m.objVal += sdp.sdpobj.constant 
         m.colVal = MathProgBase.getsolution(m.internalModel)
         sdp.sdpval = Array(AbstractArray, length(sdp.sdpvar))
         for it in 1:length(sdp.sdpvar)
-            idx    = sdp.solverinfo[it].id
-            sgn    = sdp.solverinfo[it].psd ? +1.0 : -1.0
-            offset = sdp.solverinfo[it].offset
-            sdp.sdpval[it] = sgn*MathProgBase.getsdpsolution(m.internalModel, idx) + offset
-            # m.objVal += sgn*trace(offset)
+            if isa(sdp.sdpvar[it],SDPVar)
+                idx    = sdp.solverinfo[it].id
+                sgn    = sdp.solverinfo[it].psd ? +1.0 : -1.0
+                offset = sdp.solverinfo[it].offset
+                sdp.sdpval[it] = sgn*MathProgBase.getsdpsolution(m.internalModel, idx) + offset
+            elseif isa(sdp.sdpvar[it],MatrixVar)
+                # what to do? Grap portion of internalvar
+            end
         end
         m.objVal = getValue(sdp.sdpobj)
     end

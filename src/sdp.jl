@@ -22,10 +22,10 @@ SolverInfo() = SolverInfo(0,true,nothing)
 
 type SDPData
     sdpvar#::Vector{SDPVar}
+    varname::Vector{String}
     lb
     ub
     solverinfo::Vector{SolverInfo}
-    varname::Vector{String}
     matrixconstr#::Vector{MatrixConstraint}
     primalconstr#::Vector{PrimalConstraint}
     dualconstr#::Vector{DualConstraint}
@@ -33,13 +33,27 @@ type SDPData
     sdpval
 end
 
-SDPData() = SDPData(SDPVar[], {}, {}, SolverInfo[], String[], MatrixConstraint[],PrimalConstraint[],DualConstraint[],MatrixFuncExpr(),{})
+SDPData() = SDPData({}, String[], {}, {}, SolverInfo[], MatrixConstraint[], PrimalConstraint[], DualConstraint[], MatrixFuncExpr(), {})
 
 initSDP(m::Model) = (m.sdpdata == nothing) && (m.sdpdata = SDPData())
 
 # Useful type hierarchy for vcat, hcat, etc.
 abstract SDPMatrix 
-typealias Matrices Union(SDPMatrix, AbstractArray)
+typealias Matrices Union(SDPMatrix, AbstractArray, Number) # want to add Real to this list, too...
+
+# add these to deal with cases like [1 ones(1,3)]
+vcat(args::Union(AbstractArray,Number)...) = cat(1, args...)
+hcat(args::Union(AbstractArray,Number)...) = cat(2, args...)
+function hvcat(rows::(Int...), as::Union(AbstractArray,Number)...)
+    nbr = length(rows)  # number of block rows
+    rs = cell(nbr)
+    a = 1
+    for i = 1:nbr
+        rs[i] = hcat(as[a:a-1+rows[i]]...)
+        a += rows[i]
+    end
+    vcat(rs...)
+end
 
 function hcat(args::Matrices...)
     n = length(args)
@@ -176,6 +190,8 @@ macro defSDPVar(m, x, extra...)
         # TODO: allow user to specify matrix properties here (diagonal, etc.)
     end
 
+    length(var.args) == 2 || error("SDPVar must be specificed by a single dimension")
+
     if !isexpr(var,:ref) # TODO: infer size via syntax like @defSDPVar(m, X >= ones(3,3))
         error("Syntax error: Need to specify matrix size (e.g. $var[5])")
     else
@@ -292,6 +308,8 @@ macro defMatrixVar(m, x, extra...)
         # TODO: allow user to specify matrix properties here (diagonal, etc.)
     end
 
+    length(var.args) == 3 || error("MatrixVar must be specificed by two dimensions")
+
     if !isexpr(var,:ref) # TODO: infer size via syntax like @defSDPVar(m, X >= ones(3,3))
         error("Syntax error: Need to specify matrix size (e.g. $var[5])")
     else
@@ -305,7 +323,7 @@ macro defMatrixVar(m, x, extra...)
             $lb == $ub && error("Replace with constant matrix")
             initSDP($m)
             sdp = $(m).sdpdata
-            $(varname) = SDPVar($m, length(sdp.sdpvar)+1, $(esc(var.args[2])))
+            $(varname) = MatrixVar($m, length(sdp.sdpvar)+1, ($(esc(var.args[2])),$(esc(var.args[3]))))
             push!(sdp.sdpvar, $(varname))
             push!(sdp.lb, $lb)
             push!(sdp.ub, $ub)
