@@ -1,6 +1,7 @@
 export SDPData, 
        SDPModel, 
-       MatrixVar, 
+       SDPVar, 
+       MatrixVar,
        MatrixExpr, 
        MatrixFuncVar,
        MatrixFuncExpr,
@@ -8,7 +9,8 @@ export SDPData,
        PrimalConstraint,
        DualConstraint,
        MatrixConstraint, 
-       @defSDPVar
+       @defSDPVar,
+       @defMatrixVar
 
 type SolverInfo
     id::Int64 # internal solver IDs for PSD variable
@@ -19,7 +21,7 @@ end
 SolverInfo() = SolverInfo(0,true,nothing)
 
 type SDPData
-    sdpvar#::Vector{MatrixVar}
+    sdpvar#::Vector{SDPVar}
     lb
     ub
     solverinfo::Vector{SolverInfo}
@@ -31,7 +33,7 @@ type SDPData
     sdpval
 end
 
-SDPData() = SDPData(MatrixVar[], {}, {}, SolverInfo[], String[], MatrixConstraint[],PrimalConstraint[],DualConstraint[],MatrixFuncExpr(),{})
+SDPData() = SDPData(SDPVar[], {}, {}, SolverInfo[], String[], MatrixConstraint[],PrimalConstraint[],DualConstraint[],MatrixFuncExpr(),{})
 
 initSDP(m::Model) = (m.sdpdata == nothing) && (m.sdpdata = SDPData())
 
@@ -79,61 +81,61 @@ end
 const 𝕀 = UniformScaling(1)
 
 ###############################################################################
-# Matrix Variable class
+# Semidefinite Variable class
 # Pointer to model, with solver index and dimension
-type MatrixVar <: SDPMatrix
+type SDPVar <: SDPMatrix
     m::Model
     index::Int64
     dim::Int64
 end
 
-transpose(a::MatrixVar)  = a
-ctranspose(a::MatrixVar) = a
-conj(a::MatrixVar) = a
+transpose(a::SDPVar)  = a
+ctranspose(a::SDPVar) = a
+conj(a::SDPVar) = a
 
-size(d::MatrixVar) = (d.dim,d.dim)
-size(d::MatrixVar, slice::Int64) = (0 <= slice <= 2) ? d.dim : 1
-ndims(d::MatrixVar) = 2
-eye(d::MatrixVar)  = eye(d.dim)
-issym(d::MatrixVar) = true
-isequal(a::MatrixVar, b::MatrixVar) = ( (a.m==b.m) && (a.index==b.index) )
+size(d::SDPVar) = (d.dim,d.dim)
+size(d::SDPVar, slice::Int64) = (0 <= slice <= 2) ? d.dim : 1
+ndims(d::SDPVar) = 2
+eye(d::SDPVar)  = eye(d.dim)
+issym(d::SDPVar) = true
+isequal(a::SDPVar, b::SDPVar) = ( (a.m==b.m) && (a.index==b.index) )
 
-getValue(d::MatrixVar) = d.m.sdpdata.sdpval[d.index] 
+getValue(d::SDPVar) = d.m.sdpdata.sdpval[d.index] 
 
-getLower(d::MatrixVar) = d.m.sdpdata.lb[d.index]
-getUpper(d::MatrixVar) = d.m.sdpdata.ub[d.index]
-function setLower(d::MatrixVar,lb::Real)
+getLower(d::SDPVar) = d.m.sdpdata.lb[d.index]
+getUpper(d::SDPVar) = d.m.sdpdata.ub[d.index]
+function setLower(d::SDPVar,lb::Real)
     (lb == 0.0 || isinf(lb)) && error("Only zero or infinite scalar bound is allowed")
     d.m.sdpdata.lb[d.index] = lb
 end
-function setLower{T<:Number}(d::MatrixVar,lb::AbstractArray{T,2})
+function setLower{T<:Number}(d::SDPVar,lb::AbstractArray{T,2})
     size(d) == size(lb) || error("Bound must be same size as matrix variable")
     issym(lb) || error("Bound must be symmetric")
     d.m.sdpdata.lb[d.index] = lb
 end
-function setUpper(d::MatrixVar,ub::Real)
+function setUpper(d::SDPVar,ub::Real)
     (ub == 0.0 || isinf(ub)) && error("Only zero or infinite scalar bound is allowed")
     d.m.sdpdata.ub[d.index] = ub
 end
-function setUpper{T<:Number}(d::MatrixVar,ub::AbstractArray{T,2})
+function setUpper{T<:Number}(d::SDPVar,ub::AbstractArray{T,2})
     size(d) == size(ub) || error("Bound must be same size as matrix variable")
     issym(ub) || error("Bound must be symmetric")
     d.m.sdpdata.ub[d.index] = ub
 end
 
-getName(d::MatrixVar) = d.m.sdpdata.varname[d.index]
-setName(d::MatrixVar, name::String) = (d.m.sdpdata.varname[d.index] = name)
+getName(d::SDPVar) = d.m.sdpdata.varname[d.index]
+setName(d::SDPVar, name::String) = (d.m.sdpdata.varname[d.index] = name)
 
-trace(c::MatrixVar)  = trace(convert(MatrixExpr, c))
-dot(c::MatrixVar,d::AbstractArray) = trace(c*d)
-dot(c::AbstractArray,d::MatrixVar) = trace(c*d)
-norm(c::MatrixVar)   = norm(convert(MatrixExpr, c))
-sum(c::MatrixVar)    = sum(convert(MatrixExpr, c))
+trace(c::SDPVar)  = trace(convert(MatrixExpr, c))
+dot(c::SDPVar,d::AbstractArray) = trace(c*d)
+dot(c::AbstractArray,d::SDPVar) = trace(c*d)
+norm(c::SDPVar)   = norm(convert(MatrixExpr, c))
+sum(c::SDPVar)    = sum(convert(MatrixExpr, c))
 
-show(io::IO,d::MatrixVar)  = print(io, "$(d.m.sdpdata.varname[d.index])")
-print(io::IO,d::MatrixVar) = println(io, "$(d.m.sdpdata.varname[d.index]) ∈ 𝒮₊($(d.dim))")
+show(io::IO,d::SDPVar)  = print(io, "$(d.m.sdpdata.varname[d.index])")
+print(io::IO,d::SDPVar) = println(io, "$(d.m.sdpdata.varname[d.index]) ∈ 𝒮₊($(d.dim))")
 
-getindex(d::MatrixVar, x::Int64, y::Int64) = 
+getindex(d::SDPVar, x::Int64, y::Int64) = 
     MatrixFuncVar(MatrixExpr({d},{sparse([x,y],[y,x],[0.5,0.5],d.dim,d.dim)},{𝕀},spzeros(d.dim,d.dim)),:ref)
 
 macro defSDPVar(m, x, extra...)
@@ -178,19 +180,132 @@ macro defSDPVar(m, x, extra...)
         error("Syntax error: Need to specify matrix size (e.g. $var[5])")
     else
         varname = esc(var.args[1])
-        sz = var.args[2]
+        sz = esc(var.args[2])
         code = quote
             issym($lb) || error("Lower bound is not symmetric")
             issym($ub) || error("Upper bound is not symmetric")
-            $sz == size($lb,1) || error("Lower bound is not of same size as variable")
-            $sz == size($ub,1) || error("Upper bound is not of same size as variable")
-            isa($lb,Number) && !($lb == 0.0 || $lb == -Inf) &&  error("Bounds must be of same size as variable")
-            isa($ub,Number) && !($ub == 0.0 || $ub ==  Inf) &&  error("Bounds must be of same size as variable")
+            (isa($lb,AbstractArray) && !($sz == size($lb,1))) && error("Lower bound is not of same size as variable")
+            (isa($ub,AbstractArray) && !($sz == size($ub,1))) && error("Upper bound is not of same size as variable")
+            isa($lb,Number) && !($lb == 0.0 || $lb == -Inf) && error("Bounds must be of same size as variable")
+            isa($ub,Number) && !($ub == 0.0 || $ub ==  Inf) && error("Bounds must be of same size as variable")
             $lb == -Inf && $ub == Inf && error("Replace unrestricted SDP variable with regular, scalar variables")
             $lb == $ub && error("Replace with constant matrix")
             initSDP($m)
             sdp = $(m).sdpdata
-            $(varname) = MatrixVar($m, length(sdp.sdpvar)+1, $(esc(var.args[2])))
+            $(varname) = SDPVar($m, length(sdp.sdpvar)+1, $(esc(var.args[2])))
+            push!(sdp.sdpvar, $(varname))
+            push!(sdp.lb, $lb)
+            push!(sdp.ub, $ub)
+            push!(sdp.varname, $(string(var.args[1])))
+            push!(sdp.solverinfo, SolverInfo())
+            nothing
+        end
+        return code
+    end
+end
+
+###############################################################################
+# Matrix Variable class
+# Pointer to model, with solver index and dimension
+type MatrixVar <: SDPMatrix
+    m::Model
+    index::Int64
+    dim::(Int64,Int64)
+end
+
+transpose(a::MatrixVar)  = MatrixVar(a.m,a.index,reverse(a.dim))
+ctranspose(a::MatrixVar) = MatrixVar(a.m,a.index,reverse(a.dim))
+conj(a::MatrixVar) = a
+
+size(a::MatrixVar) = a.dim
+size(d::MatrixVar, slice::Int64) = (0 <= slice <= 2) ? d.dim[slice] : 1
+ndims(d::MatrixVar) = 2
+eye(d::MatrixVar)  = eye(d.dim[1],d.dim[2])
+issym(d::MatrixVar) = (d.dim[1] == d.dim[2])
+isequal(a::MatrixVar, b::MatrixVar) = ( (a.m==b.m) && (a.index==b.index) && (a.dim == b.dim) )
+
+getValue(d::MatrixVar) = d.m.sdpdata.sdpval[d.index] 
+
+getLower(d::MatrixVar) = d.m.sdpdata.lb[d.index]
+getUpper(d::MatrixVar) = d.m.sdpdata.ub[d.index]
+function setLower(d::MatrixVar,lb::Real)
+    (lb == 0.0 || isinf(lb)) && error("Only zero or infinite scalar bound is allowed")
+    d.m.sdpdata.lb[d.index] = lb
+end
+function setLower{T<:Number}(d::MatrixVar,lb::AbstractArray{T,2})
+    size(d) == size(lb) || error("Bound must be same size as matrix variable")
+    d.m.sdpdata.lb[d.index] = lb
+end
+function setUpper(d::MatrixVar,ub::Real)
+    (ub == 0.0 || isinf(ub)) && error("Only zero or infinite scalar bound is allowed")
+    d.m.sdpdata.ub[d.index] = ub
+end
+function setUpper{T<:Number}(d::MatrixVar,ub::AbstractArray{T,2})
+    size(d) == size(ub) || error("Bound must be same size as matrix variable")
+    d.m.sdpdata.ub[d.index] = ub
+end
+
+getName(d::MatrixVar) = d.m.sdpdata.varname[d.index]
+setName(d::MatrixVar, name::String) = (d.m.sdpdata.varname[d.index] = name)
+
+show(io::IO,d::MatrixVar)  = print(io, "$(d.m.sdpdata.varname[d.index])")
+print(io::IO,d::MatrixVar) = println(io, "$(d.m.sdpdata.varname[d.index]) ∈ ℝ($(d.dim[1])×$(d.dim[2]))")
+
+getindex(d::MatrixVar, x::Int64, y::Int64) = 
+    MatrixFuncVar(MatrixExpr({d},{sparse([x,y],[y,x],[0.5,0.5],d.dim...)},{𝕀},spzeros(d.dim...)),:ref)
+
+macro defMatrixVar(m, x, extra...)
+    m = esc(m)
+    if isexpr(x,:comparison)
+        # we have some bounds
+        if x.args[2] == :>=
+            if length(x.args) == 5
+                error("Use the form lb <= var <= ub instead of ub >= var >= lb")
+            end
+            @assert length(x.args) == 3
+            # lower bounds, no upper
+            lb = esc(x.args[3])
+            ub = Inf
+            var = x.args[1]
+        elseif x.args[2] == :<=
+            if length(x.args) == 5
+                # lb <= x <= u
+                lb = esc(x.args[1])
+                if (x.args[4] != :<=)
+                    error("Expected <= operator")
+                end
+                ub = esc(x.args[5])
+                var = x.args[3]
+            else
+                # x <= u
+                ub = esc(x.args[3])
+                lb = -Inf
+                var = x.args[1]
+            end
+        end
+    else
+        var = x
+        lb = 0.0
+        ub = Inf
+    end
+    if length(extra) > 0
+        # TODO: allow user to specify matrix properties here (diagonal, etc.)
+    end
+
+    if !isexpr(var,:ref) # TODO: infer size via syntax like @defSDPVar(m, X >= ones(3,3))
+        error("Syntax error: Need to specify matrix size (e.g. $var[5])")
+    else
+        varname = esc(var.args[1])
+        sz = esc(var.args[2])
+        code = quote
+            (isa($lb,AbstractArray) && !($sz == size($lb,1))) && error("Lower bound is not of same size as variable")
+            (isa($ub,AbstractArray) && !($sz == size($ub,1))) && error("Upper bound is not of same size as variable")
+            isa($lb,Number) && !($lb == 0.0 || $lb == -Inf) && error("Bounds must be of same size as variable")
+            isa($ub,Number) && !($ub == 0.0 || $ub ==  Inf) && error("Bounds must be of same size as variable")
+            $lb == $ub && error("Replace with constant matrix")
+            initSDP($m)
+            sdp = $(m).sdpdata
+            $(varname) = SDPVar($m, length(sdp.sdpvar)+1, $(esc(var.args[2])))
             push!(sdp.sdpvar, $(varname))
             push!(sdp.lb, $lb)
             push!(sdp.ub, $ub)
@@ -261,7 +376,7 @@ size(d::MatrixExpr, slice::Int64) = (0 <= slice <= 2) ? size(d.constant)[slice] 
 ndims(d::MatrixExpr) = 2
 eye(d::MatrixExpr)  = eye(size(d)...)
 
-convert(::Type{MatrixExpr}, v::MatrixVar) = MatrixExpr({v}, {𝕀}, {𝕀}, spzeros(v.dim,v.dim))
+convert(::Type{MatrixExpr}, v::SDPVar) = MatrixExpr({v}, {𝕀}, {𝕀}, spzeros(v.dim,v.dim))
 
 transpose(d::MatrixExpr)  = MatrixExpr(transpose(d.elem), map(transpose, d.post), map(transpose, d.pre), d.constant)
 ctranspose(d::MatrixExpr) = MatrixExpr(transpose(d.elem), map(transpose, d.post), map(transpose, d.pre), d.constant)
@@ -287,7 +402,7 @@ end
 
 function getnames(c::MatrixExpr,d::Dict)
     for el in c.elem
-        if isa(el,MatrixVar)
+        if isa(el,SDPVar)
             d[el.m.sdpdata.varname[el.index]] = nothing
         elseif isa(el,AbstractArray)
             # do nothing
@@ -328,7 +443,7 @@ end
 
 function getindex(d::MatrixExpr, x::Int64, y::Int64)
     m,n = size(d)
-    if isa(d.elem, MatrixVar) # X
+    if isa(d.elem, SDPVar) # X
         MatrixFuncVar(MatrixExpr({d.elem},{sparse([x,y],[y,x],[0.5,0.5],d.dim,d.dim)},{𝕀},spzeros(m,n)),:ref)
     elseif isa(d.elem, Vector) # AX+BY+C
         return MatrixFuncVar(MatrixExpr(d.elem,
@@ -438,6 +553,8 @@ DualExpr(n::Integer) = DualExpr(Variable[],AbstractArray[],spzeros(n,n))
 
 size(d::DualExpr) = size(d.constant)
 size(d::DualExpr, slice::Int64) = (0 <= slice <= 2) ? d.dim : 1
+
+issym(d::DualExpr) = mapreduce(issym,&,d.coeffs) && issym(d.constant)
 
 getValue(d::DualExpr) = mapreduce(it->d.coeffs[it]*getValue(d.vars[it]), +, 1:length(d.vars)) + d.constant
 

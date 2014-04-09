@@ -14,7 +14,7 @@ function addPrimalConstraint(m::Model,c::PrimalConstraint)
             sinfo = m.sdpdata.solverinfo[expr.elem[1].index]
             sgn = (sinfo.psd ? +1.0 : -1.0)
             if el.func == :trace
-                mapreduce(x->isa(x,MatrixVar),&,expr.elem) || error("Cannot have nested structure inside trace operator")
+                mapreduce(x->isa(x,SDPVar),&,expr.elem) || error("Cannot have nested structure inside trace operator")
                 mat = expr.post[1] * expr.pre[1] # exploit cyclic property of trace
                 isa(mat,UniformScaling) && (mat *= speye(size(el.expr)...))
                 idx = addsdpmatrix!(m.internalModel,sgn*coeff*mat)
@@ -41,7 +41,7 @@ end
 
 function addInternalVar(m::Model, dim::Int64)
     idx = addsdpvar!(m.internalModel, dim)
-    var = MatrixVar(m,length(m.sdpdata.sdpvar)+1,dim)
+    var = SDPVar(m,length(m.sdpdata.sdpvar)+1,dim)
     push!(m.sdpdata.sdpvar, var)
     push!(m.sdpdata.lb, 0.0)
     push!(m.sdpdata.ub, Inf)

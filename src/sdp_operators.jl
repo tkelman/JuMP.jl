@@ -14,11 +14,11 @@
 
 # Number--DualExpr
 (*)(lhs::Number, rhs::DualExpr) = DualExpr(copy(rhs.vars), lhs*rhs.coeffs, copy(rhs.constant))
-# Number--MatrixVar
-(+)(lhs::Number, rhs::MatrixVar) = error("Cannot add a scalar and a matrix variable")
-(-)(lhs::Number, rhs::MatrixVar) = error("Cannot subtract a scalar and a matrix variable")
-(*)(lhs::Number, rhs::MatrixVar) = MatrixExpr({rhs}, lhs*{𝕀}, {𝕀}, spzeros(size(rhs)...))
-(/)(lhs::Number, rhs::MatrixVar) = error("Cannot divide a scalar by a matrix variable")
+# Number--SDPVar
+(+)(lhs::Number, rhs::SDPVar) = error("Cannot add a scalar and a matrix variable")
+(-)(lhs::Number, rhs::SDPVar) = error("Cannot subtract a scalar and a matrix variable")
+(*)(lhs::Number, rhs::SDPVar) = MatrixExpr({rhs}, lhs*{𝕀}, {𝕀}, spzeros(size(rhs)...))
+(/)(lhs::Number, rhs::SDPVar) = error("Cannot divide a scalar by a matrix variable")
 # Number--MatrixExpr
 (+)(lhs::Number, rhs::MatrixExpr)  = error("Cannot add a scalar to a matrix expression")
 (-)(lhs::Number, rhs::MatrixExpr)  = error("Cannot subtract a matrix expression from a number")
@@ -40,11 +40,11 @@ function (*){T<:Number}(lhs::Variable, rhs::AbstractArray{T,2})
     issym(rhs) || error("Matrix coefficient must be symmetric")
     DualExpr([lhs], AbstractArray[rhs], spzeros(size(rhs)...))
 end
-# Variable--MatrixVar
-(+)(lhs::Variable, rhs::MatrixVar) = error("Cannot add a scalar variable and a matrix variable") #TODO: make this work w/ 1x1 matrices
-(-)(lhs::Variable, rhs::MatrixVar) = error("Cannot subtract a matrix variable from a scalar variable")
-(*)(lhs::Variable, rhs::MatrixVar) = error("Cannot multiply a scalar variable and a matrix variable")
-(/)(lhs::Variable, rhs::MatrixVar) = error("Cannot divide a scalar variable by a matrix variable")
+# Variable--SDPVar
+(+)(lhs::Variable, rhs::SDPVar) = error("Cannot add a scalar variable and a matrix variable") #TODO: make this work w/ 1x1 matrices
+(-)(lhs::Variable, rhs::SDPVar) = error("Cannot subtract a matrix variable from a scalar variable")
+(*)(lhs::Variable, rhs::SDPVar) = error("Cannot multiply a scalar variable and a matrix variable")
+(/)(lhs::Variable, rhs::SDPVar) = error("Cannot divide a scalar variable by a matrix variable")
 # Variable--MatrixExpr
 (+)(lhs::Variable, rhs::MatrixExpr) = error("Cannot add a scalar variable and a matrix expression") #TODO: make this work w/ 1x1 matrices
 (-)(lhs::Variable, rhs::MatrixExpr) = error("Cannot subtract a matrix expression from a scalar variable")
@@ -66,11 +66,11 @@ function (*){T<:Number}(lhs::AffExpr, rhs::AbstractArray{T,2})
     issym(rhs) || error("Matrix coefficient must be symmetric")
     DualExpr(copy(lhs.vars), map(x->x*rhs,lhs.coeffs), lhs.constant*rhs)
 end
-# AffExpr--MatrixVar
-(+)(lhs::AffExpr, rhs::MatrixVar) = error("Cannot add a scalar expression and a matrix variable") #TODO: make this work w/ 1x1 matrices
-(-)(lhs::AffExpr, rhs::MatrixVar) = error("Cannot subtract a matrix variable from a scalar expression")
-(*)(lhs::AffExpr, rhs::MatrixVar) = error("Cannot multiply a scalar expression and a matrix variable")
-(/)(lhs::AffExpr, rhs::MatrixVar) = error("Cannot divide a scalar expression by a matrix variable")
+# AffExpr--SDPVar
+(+)(lhs::AffExpr, rhs::SDPVar) = error("Cannot add a scalar expression and a matrix variable") #TODO: make this work w/ 1x1 matrices
+(-)(lhs::AffExpr, rhs::SDPVar) = error("Cannot subtract a matrix variable from a scalar expression")
+(*)(lhs::AffExpr, rhs::SDPVar) = error("Cannot multiply a scalar expression and a matrix variable")
+(/)(lhs::AffExpr, rhs::SDPVar) = error("Cannot divide a scalar expression by a matrix variable")
 # AffExpr--MatrixExpr
 (+)(lhs::AffExpr, rhs::MatrixExpr) = error("Cannot add a scalar expression and a matrix expression") #TODO: make this work w/ 1x1 matrices
 (-)(lhs::AffExpr, rhs::MatrixExpr) = error("Cannot subtract a matrix expression from a scalar expression")
@@ -87,11 +87,11 @@ end
 (*)(lhs::AffExpr, rhs::MatrixFuncExpr) = error("Cannot multiply a scalar expression and a matrix function expression")
 (/)(lhs::AffExpr, rhs::MatrixFuncExpr) = error("Cannot divide a scalar expression by a matrix function expression")
 
-# QuadExpr--MatrixVar
-(+)(lhs::QuadExpr, rhs::MatrixVar) = error("Cannot add a scalar quadratic expression and a matrix variable") #TODO: make this work w/ 1x1 matrices
-(-)(lhs::QuadExpr, rhs::MatrixVar) = error("Cannot subtract a matrix variable from a scalar quadratic expression")
-(*)(lhs::QuadExpr, rhs::MatrixVar) = error("Cannot multiply a scalar quadratic expression and a matrix variable")
-(/)(lhs::QuadExpr, rhs::MatrixVar) = error("Cannot divide a scalar quadratic expression by a matrix variable")
+# QuadExpr--SDPVar
+(+)(lhs::QuadExpr, rhs::SDPVar) = error("Cannot add a scalar quadratic expression and a matrix variable") #TODO: make this work w/ 1x1 matrices
+(-)(lhs::QuadExpr, rhs::SDPVar) = error("Cannot subtract a matrix variable from a scalar quadratic expression")
+(*)(lhs::QuadExpr, rhs::SDPVar) = error("Cannot multiply a scalar quadratic expression and a matrix variable")
+(/)(lhs::QuadExpr, rhs::SDPVar) = error("Cannot divide a scalar quadratic expression by a matrix variable")
 # QuadExpr--MatrixExpr
 (+)(lhs::QuadExpr, rhs::MatrixExpr) = error("Cannot add a scalar quadratic expression and a matrix expression") #TODO: make this work w/ 1x1 matrices
 (-)(lhs::QuadExpr, rhs::MatrixExpr) = error("Cannot subtract a matrix expression from a scalar quadratic expression")
@@ -142,19 +142,19 @@ function (*){T<:Number}(lhs::AbstractArray{T,2}, rhs::DualExpr)
     issym(rhs) || error("Matrix coefficient must be symmetric")
     DualExpr(copy(rhs.vars), lhs*rhs.coeffs, lhs*rhs..constant)
 end
-# AbstractArray{T,2}--MatrixVar
-function (+){T<:Number}(lhs::AbstractArray{T,2}, rhs::MatrixVar)
+# AbstractArray{T,2}--SDPVar
+function (+){T<:Number}(lhs::AbstractArray{T,2}, rhs::SDPVar)
     (size(lhs) == size(rhs)) || error("Cannot add matrices of unequal size")
     MatrixExpr({rhs}, {𝕀}, {𝕀}, lhs)
 end
-function (-){T<:Number}(lhs::AbstractArray{T,2}, rhs::MatrixVar)
+function (-){T<:Number}(lhs::AbstractArray{T,2}, rhs::SDPVar)
     (size(lhs) == size(rhs)) || error("Cannot subtract matrices of unequal size")
     MatrixExpr({rhs}, {-𝕀}, {𝕀}, lhs)
 end
-function (*){T<:Number}(lhs::AbstractArray{T,2}, rhs::MatrixVar)
+function (*){T<:Number}(lhs::AbstractArray{T,2}, rhs::SDPVar)
     MatrixExpr({rhs}, {lhs}, {𝕀}, spzeros(size(lhs)...))
 end
-(/){T<:Number}(lhs::AbstractArray{T,2}, rhs::MatrixVar) = error("Cannot divide matrices")
+(/){T<:Number}(lhs::AbstractArray{T,2}, rhs::SDPVar) = error("Cannot divide matrices")
 # AbstractArray{T,2}--MatrixExpr
 function (+){T<:Number}(lhs::AbstractArray{T,2}, rhs::MatrixExpr)
     (size(lhs) == size(rhs.constant)) || error("Cannot add matrices of unequal size")
@@ -169,71 +169,71 @@ function (*){T<:Number}(lhs::AbstractArray{T,2}, rhs::MatrixExpr)
 end
 (/){T<:Number}(lhs::AbstractArray{T,2}, rhs::MatrixExpr) = error("Cannot divide matrices")
 # UniformScaling
-# UniformScaling--MatrixVar
-(+)(lhs::UniformScaling,rhs::MatrixVar) = MatrixExpr({rhs},{ 𝕀},{𝕀},lhs)
-(-)(lhs::UniformScaling,rhs::MatrixVar) = MatrixExpr({rhs},{-𝕀},{𝕀},lhs)
-(*)(lhs::UniformScaling,rhs::MatrixVar) = MatrixExpr({rhs},{lhs},{𝕀},spzeros(size(rhs)...))
+# UniformScaling--SDPVar
+(+)(lhs::UniformScaling,rhs::SDPVar) = MatrixExpr({rhs},{ 𝕀},{𝕀},lhs)
+(-)(lhs::UniformScaling,rhs::SDPVar) = MatrixExpr({rhs},{-𝕀},{𝕀},lhs)
+(*)(lhs::UniformScaling,rhs::SDPVar) = MatrixExpr({rhs},{lhs},{𝕀},spzeros(size(rhs)...))
 # UniformScaling--MatrixExpr
 (+)(lhs::UniformScaling,rhs::MatrixExpr) = MatrixExpr(copy(rhs.elem),copy(rhs.pre),copy(rhs.post),rhs.constant+lhs)
 (-)(lhs::UniformScaling,rhs::MatrixExpr) = MatrixExpr(copy(rhs.elem),-rhs.pre,copy(rhs.post),lhs-rhs.constant)
 (*)(lhs::UniformScaling,rhs::MatrixExpr) = MatrixExpr(copy(rhs.elem),lhs.λ*rhs.pre,copy(rhs.post),lhs.λ*rhs.constant)
-# MatrixVar
-(-)(var::MatrixVar) = MatrixExpr({var},{-𝕀},{𝕀},spzeros(size(var)...))
-# MatrixVar--Number
-(+)(lhs::MatrixVar, rhs::Number) = error("Cannot add a matrix variable and a scalar")
-(-)(lhs::MatrixVar, rhs::Number) = error("Cannot subtract a matrix variable and a scalar")
-(*)(lhs::MatrixVar, rhs::Number) = (*)(rhs,lhs)
-(/)(lhs::MatrixVar, rhs::Number) = (*)(1/rhs,lhs)
-# MatrixVar--AbstractArray{T,2}
-function (+){T<:Number}(lhs::MatrixVar, rhs::AbstractArray{T,2})
+# SDPVar
+(-)(var::SDPVar) = MatrixExpr({var},{-𝕀},{𝕀},spzeros(size(var)...))
+# SDPVar--Number
+(+)(lhs::SDPVar, rhs::Number) = error("Cannot add a matrix variable and a scalar")
+(-)(lhs::SDPVar, rhs::Number) = error("Cannot subtract a matrix variable and a scalar")
+(*)(lhs::SDPVar, rhs::Number) = (*)(rhs,lhs)
+(/)(lhs::SDPVar, rhs::Number) = (*)(1/rhs,lhs)
+# SDPVar--AbstractArray{T,2}
+function (+){T<:Number}(lhs::SDPVar, rhs::AbstractArray{T,2})
     (size(lhs) == size(rhs)) || error("Cannot add matrices of unequal size")
     MatrixExpr({lhs}, {𝕀}, {𝕀}, rhs)
 end
-function (-){T<:Number}(lhs::MatrixVar, rhs::AbstractArray{T,2})
+function (-){T<:Number}(lhs::SDPVar, rhs::AbstractArray{T,2})
     (size(lhs) == size(rhs)) || error("Cannot subtract matrices of unequal size")
     MatrixExpr({lhs}, {𝕀}, {I}, -rhs)
 end
-(*){T<:Number}(lhs::MatrixVar, rhs::AbstractArray{T,2}) = MatrixExpr({lhs}, {𝕀}, {𝕀}, spzeros(size(lhs,1),size(rhs,2)))
-(/){T<:Number}(lhs::MatrixVar, rhs::AbstractArray{T,2}) = error("Cannot divide matrices")
-# MatrixVar--UniformScaling
-(+)(lhs::MatrixVar,rhs::UniformScaling) = MatrixExpr({lhs},{𝕀},{𝕀}, rhs)
-(-)(lhs::MatrixVar,rhs::UniformScaling) = MatrixExpr({lhs},{𝕀},{𝕀},-rhs)
-(*)(lhs::MatrixVar,rhs::UniformScaling) = MatrixExpr({lhs},{𝕀},{rhs},spzeros(size(lhs)...))
-# MatrixVar--Variable
-(+)(lhs::MatrixVar, rhs::Variable) = error("Cannot add a matrix variable and a variable")
-(-)(lhs::MatrixVar, rhs::Variable) = error("Cannot subtract a matrix variable and a variable")
-(*)(lhs::MatrixVar, rhs::Variable) = error("Cannot multiply a matrix variable and a variable")
-(/)(lhs::MatrixVar, rhs::Variable) = error("Cannot divide a matrix variable and a variable")
-# MatrixVar--AffExpr
-(+)(lhs::MatrixVar, rhs::AffExpr) = error("Cannot add a matrix variable and an affine expression")
-(-)(lhs::MatrixVar, rhs::AffExpr) = error("Cannot subtract a matrix variable and an affine expression")
-(*)(lhs::MatrixVar, rhs::AffExpr) = error("Cannot multiply a matrix variable and an affine expression")
-(/)(lhs::MatrixVar, rhs::AffExpr) = error("Cannot divide a matrix variable and an affine expression")
-# MatrixVar--QuadExpr
-(+)(lhs::MatrixVar, rhs::QuadExpr) = error("Cannot add a matrix variable and a quadratic expression")
-(-)(lhs::MatrixVar, rhs::QuadExpr) = error("Cannot subtract a matrix variable and a quadratic expression")
-(*)(lhs::MatrixVar, rhs::QuadExpr) = error("Cannot multiply a matrix variable and a quadratic expression")
-(/)(lhs::MatrixVar, rhs::QuadExpr) = error("Cannot divide a matrix variable and a quadratic expression")
-# MatrixVar--MatrixVar
-function (+)(lhs::MatrixVar, rhs::MatrixVar)
+(*){T<:Number}(lhs::SDPVar, rhs::AbstractArray{T,2}) = MatrixExpr({lhs}, {𝕀}, {𝕀}, spzeros(size(lhs,1),size(rhs,2)))
+(/){T<:Number}(lhs::SDPVar, rhs::AbstractArray{T,2}) = error("Cannot divide matrices")
+# SDPVar--UniformScaling
+(+)(lhs::SDPVar,rhs::UniformScaling) = MatrixExpr({lhs},{𝕀},{𝕀}, rhs)
+(-)(lhs::SDPVar,rhs::UniformScaling) = MatrixExpr({lhs},{𝕀},{𝕀},-rhs)
+(*)(lhs::SDPVar,rhs::UniformScaling) = MatrixExpr({lhs},{𝕀},{rhs},spzeros(size(lhs)...))
+# SDPVar--Variable
+(+)(lhs::SDPVar, rhs::Variable) = error("Cannot add a matrix variable and a variable")
+(-)(lhs::SDPVar, rhs::Variable) = error("Cannot subtract a matrix variable and a variable")
+(*)(lhs::SDPVar, rhs::Variable) = error("Cannot multiply a matrix variable and a variable")
+(/)(lhs::SDPVar, rhs::Variable) = error("Cannot divide a matrix variable and a variable")
+# SDPVar--AffExpr
+(+)(lhs::SDPVar, rhs::AffExpr) = error("Cannot add a matrix variable and an affine expression")
+(-)(lhs::SDPVar, rhs::AffExpr) = error("Cannot subtract a matrix variable and an affine expression")
+(*)(lhs::SDPVar, rhs::AffExpr) = error("Cannot multiply a matrix variable and an affine expression")
+(/)(lhs::SDPVar, rhs::AffExpr) = error("Cannot divide a matrix variable and an affine expression")
+# SDPVar--QuadExpr
+(+)(lhs::SDPVar, rhs::QuadExpr) = error("Cannot add a matrix variable and a quadratic expression")
+(-)(lhs::SDPVar, rhs::QuadExpr) = error("Cannot subtract a matrix variable and a quadratic expression")
+(*)(lhs::SDPVar, rhs::QuadExpr) = error("Cannot multiply a matrix variable and a quadratic expression")
+(/)(lhs::SDPVar, rhs::QuadExpr) = error("Cannot divide a matrix variable and a quadratic expression")
+# SDPVar--SDPVar
+function (+)(lhs::SDPVar, rhs::SDPVar)
     (size(lhs) == size(rhs)) || error("Cannot add matrix variables of unequal size")
     MatrixExpr({lhs,rhs}, {𝕀,𝕀}, {𝕀,𝕀}, spzeros(size(lhs)...))
 end
-function (-)(lhs::MatrixVar, rhs::MatrixVar)
+function (-)(lhs::SDPVar, rhs::SDPVar)
     (size(lhs) == size(rhs)) || error("Cannot subtract matrix variables of unequal size")
     MatrixExpr({lhs,rhs},{𝕀,-𝕀}, {𝕀,𝕀}, spzeros(size(lhs)...))
 end
-(*)(lhs::MatrixVar, rhs::MatrixVar) = error("Cannot multiply matrix variables")
-(/)(lhs::MatrixVar, rhs::MatrixVar) = error("Cannot divide matrix variables")
-# MatrixVar--MatrixExpr
-(+)(lhs::MatrixVar, rhs::MatrixExpr) = MatrixExpr({rhs.elem...,lhs},{ rhs.pre...,𝕀},{rhs.post...,𝕀}, rhs.constant)
-(-)(lhs::MatrixVar, rhs::MatrixExpr) = MatrixExpr({rhs.elem...,lhs},{-rhs.pre...,𝕀},{rhs.post...,𝕀},-rhs.constant)
-function (*)(lhs::MatrixVar, rhs::MatrixExpr) 
+(*)(lhs::SDPVar, rhs::SDPVar) = error("Cannot multiply matrix variables")
+(/)(lhs::SDPVar, rhs::SDPVar) = error("Cannot divide matrix variables")
+# SDPVar--MatrixExpr
+(+)(lhs::SDPVar, rhs::MatrixExpr) = MatrixExpr({rhs.elem...,lhs},{ rhs.pre...,𝕀},{rhs.post...,𝕀}, rhs.constant)
+(-)(lhs::SDPVar, rhs::MatrixExpr) = MatrixExpr({rhs.elem...,lhs},{-rhs.pre...,𝕀},{rhs.post...,𝕀},-rhs.constant)
+function (*)(lhs::SDPVar, rhs::MatrixExpr) 
     (length(rhs.elem) == 0) || error("Cannot multiply matrix variables")
     (size(lhs) == size(rhs.constant)) || error("Cannot multiply matrixes of incompatible sizes")
     MatrixExpr(copy(lhs), copy(rhs.constant), {𝕀}, spzeros(size(lhs)...))
 end
-(/)(lhs::MatrixVar, rhs::MatrixExpr) = error("Cannot divide a matrix variable by a matrix expression")
+(/)(lhs::SDPVar, rhs::MatrixExpr) = error("Cannot divide a matrix variable by a matrix expression")
 
 # MatrixExpr
 # MatrixExpr--Number
@@ -271,17 +271,17 @@ end
 (-)(lhs::MatrixExpr, rhs::QuadExpr) = error("Cannot subtract a matrix expression and a quadratic expression")
 (*)(lhs::MatrixExpr, rhs::QuadExpr) = error("Cannot multiply a matrix expression and a quadratic expression")
 (/)(lhs::MatrixExpr, rhs::QuadExpr) = error("Cannot divide a matrix expression and a quadratic expression")
-# MatrixExpr--MatrixVar
-function (+)(lhs::MatrixExpr, rhs::MatrixVar)
+# MatrixExpr--SDPVar
+function (+)(lhs::MatrixExpr, rhs::SDPVar)
     (size(lhs.constant) == size(rhs)) || error("Cannot add matrix variables of unequal size")
     MatrixExpr({lhs.elem...,rhs}, {lhs.pre...,𝕀}, {lhs.post...,𝕀}, lhs.constant)
 end
-function (-)(lhs::MatrixExpr, rhs::MatrixVar)
+function (-)(lhs::MatrixExpr, rhs::SDPVar)
     (size(lhs.constant) == size(rhs)) || error("Cannot subtract matrix variables of unequal size")
     MatrixExpr({lhs.elem...,rhs}, {lhs.pre...,-𝕀}, {lhs.pre...,𝕀}, lhs.constant)
 end
-(*)(lhs::MatrixExpr, rhs::MatrixVar) = error("Cannot multiply matrix variables")
-(/)(lhs::MatrixExpr, rhs::MatrixVar) = error("Cannot divide matrix variables")
+(*)(lhs::MatrixExpr, rhs::SDPVar) = error("Cannot multiply matrix variables")
+(/)(lhs::MatrixExpr, rhs::SDPVar) = error("Cannot divide matrix variables")
 # MatrixExpr--MatrixExpr
 (+)(lhs::MatrixExpr, rhs::MatrixExpr) = MatrixExpr({lhs.elem...,rhs.elem...},{lhs.pre..., rhs.pre...},{lhs.post...,rhs.post...},lhs.constant+rhs.constant)
 (-)(lhs::MatrixExpr, rhs::MatrixExpr) = MatrixExpr({lhs.elem...,rhs.elem...},{lhs.pre...,-rhs.pre...},{lhs.post...,rhs.post...},lhs.constant-rhs.constant)
@@ -350,9 +350,9 @@ for sgn in (:<=, :(==), :>=, :(.<=), :(.>=))
             DualConstraint(DualExpr(copy(rhs.vars),-rhs.coeffs,lhs-rhs.constant), $(quot(sgn)))
         end
     end    
-    # AbstractArray{T,2}--MatrixVar
+    # AbstractArray{T,2}--SDPVar
     @eval begin 
-        function $(sgn){T<:Number}(lhs::AbstractArray{T,2}, rhs::MatrixVar)
+        function $(sgn){T<:Number}(lhs::AbstractArray{T,2}, rhs::SDPVar)
             (size(lhs) == size(rhs)) || error("Cannot compare matrices of different sizes")
             MatrixConstraint(MatrixExpr({rhs}, {-𝕀}, {𝕀}, lhs), $(quot(sgn)))
         end
@@ -360,27 +360,27 @@ for sgn in (:<=, :(==), :>=, :(.<=), :(.>=))
     # AbstractArray{T,2}--MatrixExpr
     @eval $(sgn){T<:Number}(lhs::AbstractArray{T,2}, rhs::MatrixExpr) = 
         MatrixConstraint(MatrixExpr(copy(rhs.elem), -rhs.pre, copy(rhs.post), lhs-rhs.constant), $(quot(sgn)))
-    # MatrixVar
-    # MatrixVar--AbstractArray{T,2}
+    # SDPVar
+    # SDPVar--AbstractArray{T,2}
     @eval begin
-        function $(sgn){T<:Number}(lhs::MatrixVar, rhs::AbstractArray{T,2})
+        function $(sgn){T<:Number}(lhs::SDPVar, rhs::AbstractArray{T,2})
             (size(lhs) == size(rhs)) || error("Cannot compare matrices of different sizes")
             MatrixConstraint(MatrixExpr({lhs}, {𝕀}, {𝕀}, -rhs), $(quot(sgn)))
         end
     end
-    # MatrixVar--UniformScaling
-    @eval $(sgn)(lhs::MatrixVar, rhs::UniformScaling) = 
+    # SDPVar--UniformScaling
+    @eval $(sgn)(lhs::SDPVar, rhs::UniformScaling) = 
         MatrixConstraint(MatrixExpr({lhs}, {𝕀}, {𝕀}, -rhs), $(quot(sgn)))
-    # MatrixVar--MatrixVar
+    # SDPVar--SDPVar
     @eval begin 
-        function $(sgn)(lhs::MatrixVar, rhs::MatrixVar)
+        function $(sgn)(lhs::SDPVar, rhs::SDPVar)
             (size(lhs) == size(rhs)) || error("Cannot compare matrices of different sizes")
             MatrixConstraint(MatrixExpr({lhs,rhs}, {𝕀,-𝕀}, {𝕀,𝕀}, spzeros(size(lhs)...)), $(quot(sgn)))
         end
     end
-    # MatrixVar--MatrixExpr
+    # SDPVar--MatrixExpr
     @eval begin
-        function $(sgn)(lhs::MatrixVar, rhs::MatrixExpr)
+        function $(sgn)(lhs::SDPVar, rhs::MatrixExpr)
             (size(lhs) == size(rhs)) || error("Cannot compare matrices of different sizes")
             MatrixConstraint(MatrixExpr({rhs.elem...,lhs}, {-rhs.pre...,𝕀}, {rhs.post...,𝕀}, -rhs.constant), $(quot(sgn)))
         end
@@ -392,9 +392,9 @@ for sgn in (:<=, :(==), :>=, :(.<=), :(.>=))
     # MatrixExpr--UniformScaling
     @eval $(sgn)(lhs::MatrixExpr, rhs::UniformScaling) =
         MatrixConstraint(MatrixExpr(copy(lhs.elem), copy(lhs.pre), copy(lhs.post), lhs.constant-rhs), $(quot(sgn)))
-    # MatrixExpr--MatrixVar
+    # MatrixExpr--SDPVar
     @eval begin
-        function $(sgn)(lhs::MatrixExpr, rhs::MatrixVar)
+        function $(sgn)(lhs::MatrixExpr, rhs::SDPVar)
             (size(lhs.constant) == size(rhs)) || error("Cannot compare matrices of different sizes")
             MatrixConstraint(MatrixExpr({lhs.elem..., rhs}, {lhs.pre...,-𝕀}, {lhs.post...,𝕀}, lhs.constant), $(quot(sgn)))
         end

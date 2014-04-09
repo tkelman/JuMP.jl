@@ -32,7 +32,7 @@ solve(m)
 
 # Test: * getValue(d::MatrixFuncExpr)
 #       * getValue(d::MatrixExpr)
-#       * getValue(d::MatrixVar)
+#       * getValue(d::SDPVar)
 A = [0.25 -0.25 0.0; -0.25 0.25 0.0; 0.0 0.0 0.25]
 @test getValue(X) == A
 @test getValue(Y) == 0.6*ones(5,5)
@@ -45,7 +45,7 @@ B[1:2,1:2] = -1.5*ones(2,2)
 @test getValue(2X[1,1]+3.5) == 2A[1,1]+3.5
 @test getValue(-X[1,3]+2Z[2,4]-1.0) == -A[1,3]+2B[2,4]-1.0
 
-# Test: * getLower(x::MatrixVar), getUpper
+# Test: * getLower(x::SDPVar), getUpper
 @test getLower(X) == 0.0
 @test getUpper(X) == 1/2*eye(3,3)
 @test getLower(Y) == -ones(5,5)
@@ -53,7 +53,7 @@ B[1:2,1:2] = -1.5*ones(2,2)
 @test getLower(Z) == -Inf
 @test getUpper(Z) == ones(4,4)
 
-# Test: * setLower(x::MatrixVar), setUpper
+# Test: * setLower(x::SDPVar), setUpper
 @test setLower(X) == eye(3,3)
 @test setLower(X) == Inf
 @test getLower(X) == eye(3,3)
@@ -66,7 +66,7 @@ B[1:2,1:2] = -1.5*ones(2,2)
 @test_throws setUpper(X, 1.0)
 @test_throws setUpper(X, rand(3,3))
 
-# Test * getName(x::MatrixVar), setName
+# Test * getName(x::SDPVar), setName
 @test getName(X) == "X"
 setName(X, "my new name")
 @test getName(X) == "my new name"
@@ -82,4 +82,11 @@ setName(X, "my new name")
 ###########
 # Operators
 ###########
+m = Model()
+@defVar(m, X[2])
+@defVar(m, Y[3])
+@defVar(m, Z[4])
+@defVar(m, W[5])
+
+aff = 7.1 * X + 2.5 * ones(2,2)
 
