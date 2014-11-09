@@ -12,7 +12,7 @@ install:
 build_script:
 # Need to convert from shallow to complete for Pkg.clone to work
 #  - git fetch --unshallow
-  - C:\projects\julia\bin\julia-debug -e "versioninfo(); Pkg.init(); Pkg.add(\"WinRPM\"); Pkg.checkout(\"WinRPM\", \"tk/update-dlls\"); using WinRPM"
+  - C:\projects\julia\bin\julia-debug -e "versioninfo(); Pkg.init(); Pkg.add(\"WinRPM\"); Pkg.checkout(\"WinRPM\", \"tk/update-dlls\"); Pkg.build(\"WinRPM\")"
   - C:\projects\julia\bin\julia-debug -e "Pkg.clone(pwd(), \"JuMP\"); Pkg.add(\"GLPKMathProgInterface\"); Pkg.add(\"Ipopt\")"
 
 test_script:
