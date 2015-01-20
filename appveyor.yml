@@ -17,7 +17,8 @@ install:
   - ps: write-host "APPVEYOR_PULL_REQUEST_NUMBER is " $env:APPVEYOR_PULL_REQUEST_NUMBER
   - ps: if ($env:APPVEYOR_BUILD_NUMBER -ne ((Invoke-RestMethod `
         https://ci.appveyor.com/api/projects/tkelman/$env:APPVEYOR_PROJECT_SLUG/history?recordsNumber=50).builds | `
-        Where-Object pullRequestId -eq $env:APPVEYOR_PULL_REQUEST_NUMBER)[0].buildNumber) { exit }
+        Where-Object pullRequestId -eq $env:APPVEYOR_PULL_REQUEST_NUMBER)[0].buildNumber) { `
+        Write-Host "There are newer queued builds for this pull request, failing early."; exit }
 # Download most recent Julia Windows binary
   - ps: (new-object net.webclient).DownloadFile($("http://status.julialang.org/"+$env:JULIAVERSION), "C:\projects\julia-binary.exe")
 # Run installer silently, output to C:\projects\julia
