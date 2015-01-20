@@ -10,14 +10,12 @@ environment:
 branches:
   only:
     - master
-    - av-test
 
 install:
   - ps: if ($env:APPVEYOR_BUILD_NUMBER -ne ((Invoke-RestMethod `
         https://ci.appveyor.com/api/projects/tkelman/$env:APPVEYOR_PROJECT_SLUG/history?recordsNumber=50).builds | `
         Where-Object pullRequestId -eq $env:APPVEYOR_PULL_REQUEST_NUMBER)[0].buildNumber) { `
-        Add-AppveyorCompilationMessage "There are newer queued builds for this pull request, failing early." `
-        -Category Error; exit }
+        throw "There are newer queued builds for this pull request, failing early." }
 # Download most recent Julia Windows binary
   - ps: (new-object net.webclient).DownloadFile($("http://status.julialang.org/"+$env:JULIAVERSION), "C:\projects\julia-binary.exe")
 # Run installer silently, output to C:\projects\julia
