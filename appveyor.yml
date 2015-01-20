@@ -12,6 +12,7 @@ install:
   - ps: write-host "APPVEYOR_PROJECT_ID is " $env:APPVEYOR_PROJECT_ID
   - ps: write-host "APPVEYOR_PROJECT_NAME is " $env:APPVEYOR_PROJECT_NAME
   - ps: write-host "APPVEYOR_PROJECT_SLUG is " $env:APPVEYOR_PROJECT_SLUG
+  - ps: write-host "APPVEYOR_JOB_ID is " $env:APPVEYOR_JOB_ID
 # Download most recent Julia Windows binary
   - ps: (new-object net.webclient).DownloadFile($("http://status.julialang.org/"+$env:JULIAVERSION), "C:\projects\julia-binary.exe")
 # Run installer silently, output to C:\projects\julia
