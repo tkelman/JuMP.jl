@@ -10,7 +10,6 @@ environment:
 branches:
   only:
     - master
-    - av-test
 
 install:
   - ps: if ($env:APPVEYOR_PULL_REQUEST_NUMBER -and $env:APPVEYOR_BUILD_NUMBER -ne ((Invoke-RestMethod `
